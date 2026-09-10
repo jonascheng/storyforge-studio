@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StoryForge</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar / Header -->
+        <header class="glass-panel main-header">
+            <div class="logo">
+                <span class="logo-icon">✨</span>
+                <h1>StoryForge</h1>
+            </div>
+            <div class="settings-btn" id="btnSettings">⚙️ 通行證設定</div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="card editor-card">
+                <h2>1. 貼上故事原稿</h2>
+                <textarea id="storyInput" placeholder="從前從前，在一個遙遠的王國裡..."></textarea>
+                <button class="primary-btn" id="btnBreakdown">
+                    <span class="btn-text">拆解劇本</span>
+                    <span class="btn-loader hidden">...</span>
+                </button>
+            </div>
+
+            <div class="card script-card hidden" id="scriptSection">
+                <h2>2. 劇本編輯區</h2>
+                <div class="script-list" id="scriptList">
+                    <!-- Script items will be injected here -->
+                </div>
+                <button class="primary-btn pulse" id="btnGenerate">
+                    <span class="btn-text">🔊 產生有聲書</span>
+                    <span class="btn-loader hidden">...</span>
+                </button>
+            </div>
+        </main>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal hidden" id="settingsModal">
+        <div class="modal-content glass-panel">
+            <h2>大腦通行證 (API Key)</h2>
+            <p>請輸入您的 Gemini API 通行證，我們會幫您記住。</p>
+            <input type="password" id="apiKeyInput" placeholder="AIzaSy...">
+            <div class="modal-actions">
+                <button class="secondary-btn" id="btnCloseSettings">取消</button>
+                <button class="primary-btn" id="btnSaveSettings">儲存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Generating Modal -->
+    <div class="modal hidden" id="generatingModal">
+        <div class="modal-content glass-panel loading-modal">
+            <div class="spinner"></div>
+            <h2 id="loadingText">AI 導演正在處理中...</h2>
+            <p>請稍候，精彩的故事即將誕生。</p>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

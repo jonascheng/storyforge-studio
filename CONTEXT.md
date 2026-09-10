@@ -9,7 +9,7 @@
 _Avoid_: 小工具、App
 
 **AI 導演 (AI Director)**:
-負責理解文字故事中的情緒與角色，並決定如何發聲的核心大腦。目前使用的是 Gemini 3.1 Flash TTS。
+負責理解文字故事中的情緒與角色，並決定如何發聲的核心大腦。目前使用的是 Gemini 3.8 Flash。
 _Avoid_: 語音合成器、文字轉語音、TTS 模型
 
 **故事原稿 (Source Text)**:
