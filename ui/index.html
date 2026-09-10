@@ -9,7 +9,6 @@
 </head>
 <body>
     <div class="app-container">
-        <!-- Sidebar / Header -->
         <header class="glass-panel main-header">
             <div class="logo">
                 <span class="logo-icon">✨</span>
@@ -18,26 +17,36 @@
             <div class="settings-btn" id="btnSettings">⚙️ 通行證設定</div>
         </header>
 
-        <!-- Main Content -->
         <main class="main-content">
+            <!-- Step 1: 貼上故事 -->
             <div class="card editor-card">
                 <h2>1. 貼上故事原稿</h2>
                 <textarea id="storyInput" placeholder="從前從前，在一個遙遠的王國裡..."></textarea>
+                <div class="story-name-row">
+                    <label for="storyNameInput">故事名稱</label>
+                    <input type="text" id="storyNameInput" placeholder="例如：小王子、三隻小豬...">
+                </div>
                 <button class="primary-btn" id="btnBreakdown">
-                    <span class="btn-text">拆解劇本</span>
-                    <span class="btn-loader hidden">...</span>
+                    <span class="btn-text">🎬 AI 分析劇本</span>
+                    <span class="btn-loader hidden">分析中...</span>
                 </button>
             </div>
 
-            <div class="card script-card hidden" id="scriptSection">
-                <h2>2. 劇本編輯區</h2>
-                <div class="script-list" id="scriptList">
-                    <!-- Script items will be injected here -->
+            <!-- Step 2: 場景編輯區 -->
+            <div class="card scenes-card hidden" id="scenesSection">
+                <div class="scenes-header">
+                    <h2>2. 場景編輯區</h2>
+                    <span class="story-name-badge" id="storyNameBadge"></span>
                 </div>
-                <button class="primary-btn pulse" id="btnGenerate">
-                    <span class="btn-text">🔊 產生有聲書</span>
-                    <span class="btn-loader hidden">...</span>
-                </button>
+                <div class="scenes-list" id="scenesList">
+                    <!-- Scene cards injected here -->
+                </div>
+                <div class="final-actions">
+                    <button class="primary-btn pulse" id="btnMixFinal">
+                        <span class="btn-text">🔊 產出完整有聲書</span>
+                        <span class="btn-loader hidden">合併中...</span>
+                    </button>
+                </div>
             </div>
         </main>
     </div>
@@ -55,14 +64,17 @@
         </div>
     </div>
 
-    <!-- Generating Modal -->
-    <div class="modal hidden" id="generatingModal">
+    <!-- Loading Modal -->
+    <div class="modal hidden" id="loadingModal">
         <div class="modal-content glass-panel loading-modal">
             <div class="spinner"></div>
             <h2 id="loadingText">AI 導演正在處理中...</h2>
-            <p>請稍候，精彩的故事即將誕生。</p>
+            <p id="loadingSubtext">請稍候</p>
         </div>
     </div>
+
+    <!-- Success Toast -->
+    <div class="toast hidden" id="toast"></div>
 
     <script src="app.js"></script>
 </body>
