@@ -117,11 +117,13 @@ class GeminiDirector(IDirector):
             audio_data = part.data
             mime_type = part.mime_type or ""
 
-            # Gemini TTS 回傳 raw PCM (audio/L16) 或 WAV，依 mime_type 處理
-            if "L16" in mime_type or "pcm" in mime_type.lower():
-                # Raw signed 16-bit PCM，mono，24000 Hz
+            print(f"DEBUG: TTS line: '{line.text}'")
+            print(f"DEBUG: TTS returned mime_type: '{mime_type}', data length: {len(audio_data)} bytes")
+
+            # 預設為 raw PCM，如果沒有給 mime_type 或者是 pcm/L16
+            if not mime_type or "L16" in mime_type or "pcm" in mime_type.lower() or "raw" in mime_type.lower():
+                print("DEBUG: Processing as raw 16-bit PCM (24000Hz)")
                 rate = 24000
-                # mime_type 可能包含 rate 資訊，例如 audio/L16;rate=24000
                 for part_str in mime_type.split(";"):
                     part_str = part_str.strip()
                     if part_str.lower().startswith("rate="):
@@ -136,8 +138,17 @@ class GeminiDirector(IDirector):
                     channels=1,
                 )
             else:
-                # WAV 或其他 pydub 能自動辨識的格式
-                segment = AudioSegment.from_file(io.BytesIO(audio_data))
+                print(f"DEBUG: Processing as {mime_type} via from_file")
+                try:
+                    segment = AudioSegment.from_file(io.BytesIO(audio_data))
+                except Exception as e:
+                    print(f"DEBUG: from_file failed: {e}. Trying raw PCM fallback.")
+                    segment = AudioSegment(
+                        data=audio_data,
+                        sample_width=2,
+                        frame_rate=24000,
+                        channels=1,
+                    )
 
             combined += segment
 
