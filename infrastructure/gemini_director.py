@@ -113,8 +113,32 @@ class GeminiDirector(IDirector):
                 ),
             )
 
-            audio_data = response.candidates[0].content.parts[0].inline_data.data
-            segment = AudioSegment.from_file(io.BytesIO(audio_data), format="wav")
+            part = response.candidates[0].content.parts[0].inline_data
+            audio_data = part.data
+            mime_type = part.mime_type or ""
+
+            # Gemini TTS 回傳 raw PCM (audio/L16) 或 WAV，依 mime_type 處理
+            if "L16" in mime_type or "pcm" in mime_type.lower():
+                # Raw signed 16-bit PCM，mono，24000 Hz
+                rate = 24000
+                # mime_type 可能包含 rate 資訊，例如 audio/L16;rate=24000
+                for part_str in mime_type.split(";"):
+                    part_str = part_str.strip()
+                    if part_str.lower().startswith("rate="):
+                        try:
+                            rate = int(part_str.split("=")[1])
+                        except ValueError:
+                            pass
+                segment = AudioSegment(
+                    data=audio_data,
+                    sample_width=2,   # 16-bit
+                    frame_rate=rate,
+                    channels=1,
+                )
+            else:
+                # WAV 或其他 pydub 能自動辨識的格式
+                segment = AudioSegment.from_file(io.BytesIO(audio_data))
+
             combined += segment
 
         combined.export(output_path, format="mp3")
