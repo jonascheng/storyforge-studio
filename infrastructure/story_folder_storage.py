@@ -16,3 +16,22 @@ class StoryFolderStorage:
 
     def final_audio_path(self) -> str:
         return os.path.join(self.folder_path, "final_output.mp3")
+
+    def screenplay_path(self) -> str:
+        return os.path.join(self.folder_path, "screenplay.json")
+
+    def save_screenplay(self, scenes_data: list) -> None:
+        import json
+        with open(self.screenplay_path(), "w", encoding="utf-8") as f:
+            json.dump(scenes_data, f, ensure_ascii=False, indent=2)
+
+    def load_screenplay(self) -> list:
+        import json
+        path = self.screenplay_path()
+        if not os.path.exists(path):
+            return []
+        with open(path, "r", encoding="utf-8") as f:
+            try:
+                return json.load(f)
+            except json.JSONDecodeError:
+                return []

@@ -20,20 +20,25 @@ class StoryForgeApi:
 
     def _init_processor(self):
         api_key = self.storage.get_api_key()
-        director = GeminiDirector(api_key)
+        thinking_level = self.storage.get_thinking_level()
+        director = GeminiDirector(api_key, thinking_level)
         self.processor = StoryProcessor(director=director, storage=self.storage)
 
-    # ── API 通行證 ────────────────────────────────────────────────
-    def save_api_key(self, key: str):
+    # ── 設定 ────────────────────────────────────────────────
+    def save_settings(self, key: str, thinking_level: str):
         try:
             self.processor.save_key(key)
+            self.processor.save_thinking_level(thinking_level)
             self._init_processor()
             return {"status": "ok"}
         except Exception as e:
             return {"error": str(e)}
 
-    def get_api_key(self):
-        return self.processor.get_key()
+    def get_settings(self):
+        return {
+            "key": self.processor.get_key(),
+            "thinking_level": self.processor.get_thinking_level()
+        }
 
     # ── 劇本拆解 ─────────────────────────────────────────────────
     def break_down_story(self, text: str, story_name: str):
@@ -55,10 +60,43 @@ class StoryForgeApi:
             vm_storage = VoiceMapStorage(folder.folder_path)
             vm_storage.save(voice_map)
 
+            # 將剛拆解完的劇本存檔
+            scenes_data = screenplay.to_dict()["scenes"]
+            folder.save_screenplay(scenes_data)
+
             return {
-                "scenes": screenplay.to_dict()["scenes"],
+                "scenes": scenes_data,
                 "voice_map": voice_map,
             }
+        except Exception as e:
+            return {"error": str(e)}
+
+    def check_screenplay(self, story_name: str):
+        folder = StoryFolderStorage(story_name)
+        return os.path.exists(folder.screenplay_path())
+
+    def load_screenplay(self, story_name: str):
+        try:
+            folder = StoryFolderStorage(story_name)
+            if not os.path.exists(folder.screenplay_path()):
+                return {"error": "找不到舊劇本"}
+            scenes_data = folder.load_screenplay()
+            
+            vm_storage = VoiceMapStorage(folder.folder_path)
+            voice_map = vm_storage.load()
+            return {
+                "scenes": scenes_data,
+                "voice_map": voice_map,
+            }
+        except Exception as e:
+            return {"error": str(e)}
+
+    def save_screenplay_progress(self, story_name: str, scenes_data: list):
+        try:
+            folder = StoryFolderStorage(story_name)
+            folder.ensure_folder()
+            folder.save_screenplay(scenes_data)
+            return {"status": "ok"}
         except Exception as e:
             return {"error": str(e)}
 

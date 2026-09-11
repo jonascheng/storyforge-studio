@@ -51,3 +51,11 @@ _Avoid_: 輸出目錄、資料夾
 **聲音拼接 (Audio Mixing)**:
 將各場景的獨立音檔依序合併成最終有聲書成品的過程。在所有場景都生成完畢後執行。
 _Avoid_: 合併、concatenate
+
+**思考深度 (Thinking Level)**:
+AI 導演在拆解劇本與生成聲音導演備註時的思考深淺程度（分為 MEDIUM 與 LOW）。
+_Avoid_: model parameter, reasoning level
+
+**劇本進度檔 (Screenplay Progress)**:
+記錄了 AI 拆解完並經過使用者修改的場景與台詞資料，自動存檔於故事資料夾中的檔案，可隨時載入恢復進度。
+_Avoid_: cache file, save state

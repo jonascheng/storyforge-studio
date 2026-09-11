@@ -26,10 +26,15 @@
                     <label for="storyNameInput">故事名稱</label>
                     <input type="text" id="storyNameInput" placeholder="例如：小王子、三隻小豬...">
                 </div>
-                <button class="primary-btn" id="btnBreakdown">
-                    <span class="btn-text">🎬 AI 分析劇本</span>
-                    <span class="btn-loader hidden">分析中...</span>
-                </button>
+                <div class="action-row" style="display: flex; gap: 10px; margin-top: 15px;">
+                    <button class="primary-btn" id="btnBreakdown">
+                        <span class="btn-text">🎬 AI 分析劇本</span>
+                        <span class="btn-loader hidden">分析中...</span>
+                    </button>
+                    <button class="secondary-btn" id="btnLoadScreenplay" title="若之前已分析過，可直接載入進度">
+                        <span class="btn-text">📂 載入舊劇本</span>
+                    </button>
+                </div>
             </div>
 
             <!-- Step 2: 場景編輯區 -->
@@ -57,7 +62,14 @@
             <h2>大腦通行證 (API Key)</h2>
             <p>請輸入您的 Gemini API 通行證，我們會幫您記住。</p>
             <input type="password" id="apiKeyInput" placeholder="AIzaSy...">
-            <div class="modal-actions">
+            <div style="margin-top: 15px;">
+                <label for="thinkingLevelSelect">思考深度 (Thinking Level)</label>
+                <select id="thinkingLevelSelect" style="width: 100%; padding: 8px; margin-top: 5px; border-radius: 4px; border: 1px solid #ccc; background: rgba(255, 255, 255, 0.9);">
+                    <option value="MEDIUM">MEDIUM (預設)</option>
+                    <option value="LOW">LOW (較快但較淺)</option>
+                </select>
+            </div>
+            <div class="modal-actions" style="margin-top: 20px;">
                 <button class="secondary-btn" id="btnCloseSettings">取消</button>
                 <button class="primary-btn" id="btnSaveSettings">儲存</button>
             </div>

@@ -5,10 +5,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const btnCloseSettings = document.getElementById("btnCloseSettings");
     const btnSaveSettings  = document.getElementById("btnSaveSettings");
     const apiKeyInput      = document.getElementById("apiKeyInput");
+    const thinkingLevelSelect = document.getElementById("thinkingLevelSelect");
 
     const storyInput       = document.getElementById("storyInput");
     const storyNameInput   = document.getElementById("storyNameInput");
     const btnBreakdown     = document.getElementById("btnBreakdown");
+    const btnLoadScreenplay = document.getElementById("btnLoadScreenplay");
 
     const scenesSection    = document.getElementById("scenesSection");
     const scenesList       = document.getElementById("scenesList");
@@ -46,16 +48,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // ── Settings ──────────────────────────────────────────────
     btnSettings.addEventListener("click", async () => {
-        const key = await api("get_api_key");
-        apiKeyInput.value = key || "";
+        const settings = await api("get_settings");
+        if (settings && !settings.error) {
+            apiKeyInput.value = settings.key || "";
+            thinkingLevelSelect.value = settings.thinking_level || "MEDIUM";
+        }
         settingsModal.classList.remove("hidden");
     });
     btnCloseSettings.addEventListener("click", () => settingsModal.classList.add("hidden"));
     btnSaveSettings.addEventListener("click", async () => {
         const key = apiKeyInput.value.trim();
-        await api("save_api_key", key);
+        const level = thinkingLevelSelect.value;
+        await api("save_settings", key, level);
         settingsModal.classList.add("hidden");
-        showToast("通行證已儲存 ✓");
+        showToast("設定已儲存 ✓");
     });
 
     // ── Step 1: Breakdown ─────────────────────────────────────
@@ -87,6 +93,36 @@ document.addEventListener("DOMContentLoaded", () => {
         } finally {
             setBtnLoading(btnBreakdown, false, "🎬 AI 分析劇本");
             hideLoading();
+        }
+    });
+
+    // ── Step 1.5: Load Old Screenplay ─────────────────────────
+    btnLoadScreenplay.addEventListener("click", async () => {
+        const name = storyNameInput.value.trim();
+        if (!name) { showToast("請先輸入故事名稱！", "error"); return; }
+
+        setBtnLoading(btnLoadScreenplay, true, "讀取中...");
+        
+        try {
+            const resp = await api("load_screenplay", name);
+            if (resp.error) {
+                showToast(resp.error, "error");
+                return;
+            }
+
+            currentStory  = name;
+            currentScenes = resp.scenes;
+            audioReady    = {};
+
+            storyNameBadge.textContent = "📖 " + name;
+            renderScenes();
+            scenesSection.classList.remove("hidden");
+            scenesSection.scrollIntoView({ behavior: "smooth" });
+            showToast(`成功載入舊劇本！共 ${currentScenes.length} 個場景 ✓`);
+        } catch (e) {
+            showToast("發生錯誤：" + e, "error");
+        } finally {
+            setBtnLoading(btnLoadScreenplay, false, "📂 載入舊劇本");
         }
     });
 
@@ -139,6 +175,7 @@ document.addEventListener("DOMContentLoaded", () => {
             roleInput.title = "角色";
             roleInput.addEventListener("change", (e) => {
                 currentScenes[idx].lines[lineIdx].role = e.target.value;
+                api("save_screenplay_progress", currentStory, currentScenes);
             });
 
             const emotionInput = document.createElement("input");
@@ -147,6 +184,7 @@ document.addEventListener("DOMContentLoaded", () => {
             emotionInput.title = "情緒";
             emotionInput.addEventListener("change", (e) => {
                 currentScenes[idx].lines[lineIdx].emotion = e.target.value;
+                api("save_screenplay_progress", currentStory, currentScenes);
             });
 
             const textArea = document.createElement("textarea");
@@ -156,6 +194,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 currentScenes[idx].lines[lineIdx].text = e.target.value;
                 // Mark audio as stale when content changes
                 markSceneStale(scene.scene_id);
+                api("save_screenplay_progress", currentStory, currentScenes);
             });
 
             row.appendChild(roleInput);

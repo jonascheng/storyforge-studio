@@ -23,6 +23,12 @@ class IStorage(Protocol):
     def get_api_key(self) -> str:
         ...
 
+    def save_thinking_level(self, level: str) -> None:
+        ...
+
+    def get_thinking_level(self) -> str:
+        ...
+
 
 class StoryProcessor:
     def __init__(self, director: IDirector, storage: IStorage):
@@ -46,3 +52,9 @@ class StoryProcessor:
 
     def get_key(self) -> str:
         return self.storage.get_api_key()
+
+    def save_thinking_level(self, level: str) -> None:
+        self.storage.save_thinking_level(level)
+
+    def get_thinking_level(self) -> str:
+        return self.storage.get_thinking_level()

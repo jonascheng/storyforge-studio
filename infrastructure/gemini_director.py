@@ -10,8 +10,9 @@ class GeminiDirector(IDirector):
     DIRECTOR_MODEL = "gemini-3.8-flash"
     TTS_MODEL = "gemini-3.1-flash-tts-preview"
 
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, thinking_level: str = "MEDIUM"):
         self.api_key = api_key
+        self.thinking_level = thinking_level
         self._client = genai.Client(api_key=api_key) if api_key else None
 
     def _require_key(self):
@@ -23,6 +24,11 @@ class GeminiDirector(IDirector):
         response = self._client.models.generate_content(
             model=self.DIRECTOR_MODEL,
             contents=prompt,
+            config=types.GenerateContentConfig(
+                thinking_config=types.ThinkingConfig(
+                    thinking_level=self.thinking_level
+                )
+            )
         )
         return response.text
 
