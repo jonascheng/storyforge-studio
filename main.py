@@ -84,9 +84,17 @@ class StoryForgeApi:
             
             vm_storage = VoiceMapStorage(folder.folder_path)
             voice_map = vm_storage.load()
+            
+            audio_ready_ids = []
+            for scene in scenes_data:
+                sid = scene.get("scene_id")
+                if sid is not None and os.path.exists(folder.scene_audio_path(sid)):
+                    audio_ready_ids.append(sid)
+
             return {
                 "scenes": scenes_data,
                 "voice_map": voice_map,
+                "audio_ready_ids": audio_ready_ids,
             }
         except Exception as e:
             return {"error": str(e)}

@@ -113,6 +113,9 @@ document.addEventListener("DOMContentLoaded", () => {
             currentStory  = name;
             currentScenes = resp.scenes;
             audioReady    = {};
+            if (resp.audio_ready_ids) {
+                resp.audio_ready_ids.forEach(id => { audioReady[id] = true; });
+            }
 
             storyNameBadge.textContent = "📖 " + name;
             renderScenes();
@@ -133,8 +136,12 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function renderSceneCard(scene, idx) {
+        const isReady = audioReady[scene.scene_id];
+        const statusClass = isReady ? "done" : "pending";
+        const statusText = isReady ? "✓ 已完成" : "○ 尚未生成";
+        
         const card = document.createElement("div");
-        card.className = "scene-card";
+        card.className = isReady ? "scene-card has-audio" : "scene-card";
         card.id = `scene-card-${scene.scene_id}`;
 
         // Header
@@ -146,8 +153,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 <span class="scene-title">${scene.title}</span>
             </div>
             <div class="scene-actions">
-                <span class="audio-status pending" id="status-${scene.scene_id}">
-                    ○ 尚未生成
+                <span class="audio-status ${statusClass}" id="status-${scene.scene_id}">
+                    ${statusText}
                 </span>
                 <button class="scene-regen-btn" id="regen-${scene.scene_id}">
                     🎙 生成語音
