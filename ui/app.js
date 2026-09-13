@@ -139,6 +139,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const isReady = audioReady[scene.scene_id];
         const statusClass = isReady ? "done" : "pending";
         const statusText = isReady ? "✓ 已完成" : "○ 尚未生成";
+        const btnText = isReady ? "🎙 重新生成" : "🎙 生成語音";
         
         const card = document.createElement("div");
         card.className = isReady ? "scene-card has-audio" : "scene-card";
@@ -159,7 +160,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         ${statusText}
                     </span>
                     <button class="scene-regen-btn" id="regen-${scene.scene_id}">
-                        🎙 生成語音
+                        ${btnText}
                     </button>
                 </div>
             </div>
