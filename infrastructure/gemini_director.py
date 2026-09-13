@@ -60,7 +60,7 @@ class GeminiDirector(IDirector):
         err_str = str(err)
         return "429" in err_str or "RESOURCE_EXHAUSTED" in err_str
 
-    def _generate_content_with_retry(self, *args, max_retries: int = 3, **kwargs):
+    def _generate_content_with_retry(self, *args, max_retries: int = 3, max_delay: float = 60.0, **kwargs):
         import time
         self._require_key()
         last_err = None
@@ -73,6 +73,10 @@ class GeminiDirector(IDirector):
                 last_err = e
                 if attempt < max_retries:
                     delay = self._extract_retry_delay(e, default=10.0 * (attempt + 1))
+                    if delay > max_delay:
+                        raise RuntimeError(
+                            f"AI 今日額度已達上限（需等待一段時間或明天重設，或更換通行證）：{e}"
+                        ) from e
                     sleep_sec = delay + 1.0
                     print(f"DEBUG: 遇到 429 額度限制，等待 {sleep_sec:.1f} 秒後自動重試（第 {attempt + 1}/{max_retries} 次）...")
                     time.sleep(sleep_sec)

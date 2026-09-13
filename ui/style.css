@@ -361,6 +361,27 @@ body::before {
 }
 .toast.success { border-color: rgba(52,211,153,0.4); color: var(--success); }
 .toast.error { border-color: rgba(248,113,113,0.4); color: var(--danger); }
+.toast.interactive {
+    pointer-events: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+}
+.toast-copy-btn, .copy-err-btn {
+    background: rgba(248, 113, 113, 0.15);
+    border: 1px solid rgba(248, 113, 113, 0.4);
+    color: #fca5a5;
+    padding: 3px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    white-space: nowrap;
+    transition: all 0.2s;
+}
+.toast-copy-btn:hover, .copy-err-btn:hover {
+    background: rgba(248, 113, 113, 0.3);
+    color: #fff;
+}
 
 /* AI Suggestions */
 .safe-line-btn {

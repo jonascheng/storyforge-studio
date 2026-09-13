@@ -35,10 +35,56 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     function hideLoading() { loadingModal.classList.add("hidden"); }
 
+    let toastTimeout = null;
+
+    function copyToClipboard(text) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            return navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
+        }
+        return fallbackCopy(text);
+    }
+    function fallbackCopy(text) {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        try {
+            document.execCommand("copy");
+        } catch (e) {}
+        document.body.removeChild(ta);
+        return Promise.resolve();
+    }
+
     function showToast(msg, type = "success") {
-        toast.textContent = msg;
-        toast.className = `toast ${type}`;
-        setTimeout(() => toast.classList.add("hidden"), 3000);
+        if (toastTimeout) clearTimeout(toastTimeout);
+        toast.textContent = "";
+
+        const textSpan = document.createElement("span");
+        textSpan.textContent = msg;
+        toast.appendChild(textSpan);
+
+        if (type === "error") {
+            const copyBtn = document.createElement("button");
+            copyBtn.className = "toast-copy-btn";
+            copyBtn.title = "點擊複製錯誤訊息";
+            copyBtn.textContent = "📋 複製";
+            copyBtn.onclick = (e) => {
+                e.stopPropagation();
+                copyToClipboard(msg).then(() => {
+                    copyBtn.textContent = "✓ 已複製";
+                    setTimeout(() => { copyBtn.textContent = "📋 複製"; }, 2000);
+                });
+            };
+            toast.appendChild(copyBtn);
+            toast.className = `toast ${type} interactive`;
+            toastTimeout = setTimeout(() => toast.classList.add("hidden"), 8000);
+        } else {
+            toast.className = `toast ${type}`;
+            toastTimeout = setTimeout(() => toast.classList.add("hidden"), 3000);
+        }
     }
 
     function api(method, ...args) {
@@ -246,14 +292,40 @@ document.addEventListener("DOMContentLoaded", () => {
 
             if (resp.error) {
                 let displayMsg = resp.error;
-                if (displayMsg.includes("429") || displayMsg.includes("RESOURCE_EXHAUSTED") || displayMsg.includes("額度已達每分鐘上限")) {
+                if (displayMsg.includes("今日額度已達上限") || displayMsg.includes("今日額度已用完")) {
+                    displayMsg = "AI 今日免費額度已達上限（需等待一段時間或明天重設，或更換通行證）。";
+                } else if (displayMsg.includes("429") || displayMsg.includes("RESOURCE_EXHAUSTED") || displayMsg.includes("額度已達每分鐘上限")) {
                     displayMsg = "AI 聲音額度已達每分鐘上限（每分鐘最多 10 句）。系統已嘗試自動排隊重試，若仍無法生成，請稍等一分鐘後再點擊生成。";
                 }
                 showToast(`場景 ${sceneId} 錯誤：${displayMsg}`, "error");
                 status.className = "audio-status pending";
                 status.textContent = "✕ 失敗";
                 if (errorDiv) {
-                    errorDiv.innerHTML = `<div>${displayMsg}</div>`;
+                    errorDiv.innerHTML = "";
+                    const headerRow = document.createElement("div");
+                    headerRow.style.display = "flex";
+                    headerRow.style.justifyContent = "space-between";
+                    headerRow.style.alignItems = "flex-start";
+                    headerRow.style.gap = "8px";
+
+                    const msgDiv = document.createElement("div");
+                    msgDiv.style.flex = "1";
+                    msgDiv.textContent = displayMsg;
+                    headerRow.appendChild(msgDiv);
+
+                    const copyBtn = document.createElement("button");
+                    copyBtn.className = "copy-err-btn";
+                    copyBtn.title = "點擊複製錯誤內容";
+                    copyBtn.textContent = "📋 複製";
+                    copyBtn.onclick = () => {
+                        copyToClipboard(resp.error || displayMsg).then(() => {
+                            copyBtn.textContent = "✓ 已複製";
+                            setTimeout(() => { copyBtn.textContent = "📋 複製"; }, 2000);
+                        });
+                    };
+                    headerRow.appendChild(copyBtn);
+                    errorDiv.appendChild(headerRow);
+
                     if (resp.error.includes("安全審查阻擋")) {
                         const btn = document.createElement("button");
                         btn.className = "safe-line-btn";
@@ -313,14 +385,39 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         } catch (e) {
             let errorMsg = e.toString();
-            if (errorMsg.includes("429") || errorMsg.includes("RESOURCE_EXHAUSTED") || errorMsg.includes("額度已達每分鐘上限")) {
+            if (errorMsg.includes("今日額度已達上限") || errorMsg.includes("今日額度已用完")) {
+                errorMsg = "AI 今日免費額度已達上限（需等待一段時間或明天重設，或更換通行證）。";
+            } else if (errorMsg.includes("429") || errorMsg.includes("RESOURCE_EXHAUSTED") || errorMsg.includes("額度已達每分鐘上限")) {
                 errorMsg = "AI 聲音額度已達每分鐘上限（每分鐘最多 10 句）。系統已嘗試自動排隊重試，若仍無法生成，請稍等一分鐘後再點擊生成。";
             }
             showToast("發生錯誤：" + errorMsg, "error");
             status.className = "audio-status pending";
             status.textContent = "✕ 失敗";
             if (errorDiv) {
-                errorDiv.textContent = errorMsg;
+                errorDiv.innerHTML = "";
+                const headerRow = document.createElement("div");
+                headerRow.style.display = "flex";
+                headerRow.style.justifyContent = "space-between";
+                headerRow.style.alignItems = "flex-start";
+                headerRow.style.gap = "8px";
+
+                const msgDiv = document.createElement("div");
+                msgDiv.style.flex = "1";
+                msgDiv.textContent = errorMsg;
+                headerRow.appendChild(msgDiv);
+
+                const copyBtn = document.createElement("button");
+                copyBtn.className = "copy-err-btn";
+                copyBtn.title = "點擊複製錯誤內容";
+                copyBtn.textContent = "📋 複製";
+                copyBtn.onclick = () => {
+                    copyToClipboard(e.toString() || errorMsg).then(() => {
+                        copyBtn.textContent = "✓ 已複製";
+                        setTimeout(() => { copyBtn.textContent = "📋 複製"; }, 2000);
+                    });
+                };
+                headerRow.appendChild(copyBtn);
+                errorDiv.appendChild(headerRow);
                 errorDiv.style.display = "block";
             }
         } finally {

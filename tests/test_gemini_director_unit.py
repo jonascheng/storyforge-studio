@@ -114,3 +114,27 @@ def test_generate_content_does_not_retry_non_429():
         assert mock_sleep.call_count == 0
         assert mock_gen.call_count == 1
 
+
+def test_generate_content_aborts_immediately_when_delay_exceeds_threshold():
+    from google.genai.errors import ClientError
+    director = GeminiDirector(api_key="fake-key")
+    err_429 = ClientError(
+        429,
+        {
+            "error": {
+                "code": 429,
+                "message": "Quota exceeded. Please retry in 78667s.",
+                "status": "RESOURCE_EXHAUSTED",
+                "details": [{"@type": "type.googleapis.com/google.rpc.RetryInfo", "retryDelay": "78667s"}]
+            }
+        }
+    )
+    mock_gen = MagicMock(side_effect=err_429)
+    director._client.models.generate_content = mock_gen
+
+    with patch("time.sleep") as mock_sleep:
+        with pytest.raises(RuntimeError, match="今日額度已達上限"):
+            director._generate_content_with_retry(model="any", contents="test", max_delay=60.0)
+        assert mock_sleep.call_count == 0
+        assert mock_gen.call_count == 1
+
