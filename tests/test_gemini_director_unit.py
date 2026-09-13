@@ -52,3 +52,65 @@ def test_requires_api_key():
     director = GeminiDirector(api_key="")
     with pytest.raises(ValueError, match="API 通行證"):
         director.break_down_screenplay("故事")
+
+
+def test_generate_content_retries_on_429_and_succeeds():
+    from google.genai.errors import ClientError
+    director = GeminiDirector(api_key="fake-key")
+    mock_response = MagicMock()
+    mock_response.text = "成功"
+
+    err_429 = ClientError(
+        429,
+        {
+            "error": {
+                "code": 429,
+                "message": "Quota exceeded. Please retry in 5s.",
+                "status": "RESOURCE_EXHAUSTED",
+                "details": [{"@type": "type.googleapis.com/google.rpc.RetryInfo", "retryDelay": "5s"}]
+            }
+        }
+    )
+    mock_gen = MagicMock(side_effect=[err_429, mock_response])
+    director._client.models.generate_content = mock_gen
+
+    with patch("time.sleep") as mock_sleep:
+        res = director._generate_content_with_retry(model="any", contents="test")
+        assert res == mock_response
+        assert mock_gen.call_count == 2
+        assert mock_sleep.call_count == 1
+        assert mock_sleep.call_args[0][0] >= 5.0
+
+
+def test_generate_content_fails_after_max_retries():
+    from google.genai.errors import ClientError
+    director = GeminiDirector(api_key="fake-key")
+    err_429 = ClientError(
+        429,
+        {
+            "error": {
+                "code": 429,
+                "message": "Quota exceeded. Please retry in 2s.",
+                "status": "RESOURCE_EXHAUSTED",
+            }
+        }
+    )
+    mock_gen = MagicMock(side_effect=err_429)
+    director._client.models.generate_content = mock_gen
+
+    with patch("time.sleep"):
+        with pytest.raises(RuntimeError, match="額度已達每分鐘上限"):
+            director._generate_content_with_retry(model="any", contents="test", max_retries=2)
+
+
+def test_generate_content_does_not_retry_non_429():
+    director = GeminiDirector(api_key="fake-key")
+    mock_gen = MagicMock(side_effect=ValueError("其他錯誤"))
+    director._client.models.generate_content = mock_gen
+
+    with patch("time.sleep") as mock_sleep:
+        with pytest.raises(ValueError, match="其他錯誤"):
+            director._generate_content_with_retry(model="any", contents="test")
+        assert mock_sleep.call_count == 0
+        assert mock_gen.call_count == 1
+

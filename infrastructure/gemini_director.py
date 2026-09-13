@@ -19,9 +19,71 @@ class GeminiDirector(IDirector):
         if not self.api_key:
             raise ValueError("需要設定 API 通行證才能使用 AI 導演。")
 
+    def _extract_retry_delay(self, err: Exception, default: float = 10.0) -> float:
+        import re
+        details = getattr(err, "details", None)
+        if isinstance(details, dict):
+            err_details = details.get("error", {}).get("details", []) or details.get("details", [])
+            if isinstance(err_details, list):
+                for item in err_details:
+                    if isinstance(item, dict) and "retryDelay" in item:
+                        delay_str = str(item["retryDelay"]).rstrip("s")
+                        try:
+                            return float(delay_str)
+                        except ValueError:
+                            pass
+
+        err_str = str(err)
+        m = re.search(r'retry in ([0-9.]+)s', err_str)
+        if m:
+            try:
+                return float(m.group(1))
+            except ValueError:
+                pass
+
+        m2 = re.search(r'[\'"]retryDelay[\'"]:\s*[\'"]([0-9.]+)s?[\'"]', err_str)
+        if m2:
+            try:
+                return float(m2.group(1))
+            except ValueError:
+                pass
+
+        return default
+
+    def _is_rate_limit_error(self, err: Exception) -> bool:
+        code = getattr(err, "code", None)
+        if code == 429:
+            return True
+        status = getattr(err, "status", None)
+        if status == "RESOURCE_EXHAUSTED":
+            return True
+        err_str = str(err)
+        return "429" in err_str or "RESOURCE_EXHAUSTED" in err_str
+
+    def _generate_content_with_retry(self, *args, max_retries: int = 3, **kwargs):
+        import time
+        self._require_key()
+        last_err = None
+        for attempt in range(max_retries + 1):
+            try:
+                return self._client.models.generate_content(*args, **kwargs)
+            except Exception as e:
+                if not self._is_rate_limit_error(e):
+                    raise
+                last_err = e
+                if attempt < max_retries:
+                    delay = self._extract_retry_delay(e, default=10.0 * (attempt + 1))
+                    sleep_sec = delay + 1.0
+                    print(f"DEBUG: 遇到 429 額度限制，等待 {sleep_sec:.1f} 秒後自動重試（第 {attempt + 1}/{max_retries} 次）...")
+                    time.sleep(sleep_sec)
+                else:
+                    break
+
+        raise RuntimeError(f"AI 額度已達每分鐘上限（已自動重試多次）：{last_err}")
+
     def _call_director_model(self, prompt: str) -> str:
         self._require_key()
-        response = self._client.models.generate_content(
+        response = self._generate_content_with_retry(
             model=self.DIRECTOR_MODEL,
             contents=prompt,
             config=types.GenerateContentConfig(
@@ -150,7 +212,7 @@ class GeminiDirector(IDirector):
             # 避免短句被安全分類器誤判為有害內容
             tts_prompt = self._build_tts_prompt(scene, line)
 
-            response = self._client.models.generate_content(
+            response = self._generate_content_with_retry(
                 model=self.TTS_MODEL,
                 contents=tts_prompt,
                 config=types.GenerateContentConfig(

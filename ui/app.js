@@ -245,11 +245,15 @@ document.addEventListener("DOMContentLoaded", () => {
             const resp = await api("generate_scene_audio", sceneData, currentStory);
 
             if (resp.error) {
-                showToast(`場景 ${sceneId} 錯誤：${resp.error}`, "error");
+                let displayMsg = resp.error;
+                if (displayMsg.includes("429") || displayMsg.includes("RESOURCE_EXHAUSTED") || displayMsg.includes("額度已達每分鐘上限")) {
+                    displayMsg = "AI 聲音額度已達每分鐘上限（每分鐘最多 10 句）。系統已嘗試自動排隊重試，若仍無法生成，請稍等一分鐘後再點擊生成。";
+                }
+                showToast(`場景 ${sceneId} 錯誤：${displayMsg}`, "error");
                 status.className = "audio-status pending";
                 status.textContent = "✕ 失敗";
                 if (errorDiv) {
-                    errorDiv.innerHTML = `<div>${resp.error}</div>`;
+                    errorDiv.innerHTML = `<div>${displayMsg}</div>`;
                     if (resp.error.includes("安全審查阻擋")) {
                         const btn = document.createElement("button");
                         btn.className = "safe-line-btn";
@@ -308,11 +312,15 @@ document.addEventListener("DOMContentLoaded", () => {
                 showToast(`場景 ${sceneId}《${currentScenes[idx].title}》語音生成完畢 ✓`);
             }
         } catch (e) {
-            showToast("發生錯誤：" + e, "error");
+            let errorMsg = e.toString();
+            if (errorMsg.includes("429") || errorMsg.includes("RESOURCE_EXHAUSTED") || errorMsg.includes("額度已達每分鐘上限")) {
+                errorMsg = "AI 聲音額度已達每分鐘上限（每分鐘最多 10 句）。系統已嘗試自動排隊重試，若仍無法生成，請稍等一分鐘後再點擊生成。";
+            }
+            showToast("發生錯誤：" + errorMsg, "error");
             status.className = "audio-status pending";
             status.textContent = "✕ 失敗";
             if (errorDiv) {
-                errorDiv.textContent = e.toString();
+                errorDiv.textContent = errorMsg;
                 errorDiv.style.display = "block";
             }
         } finally {
