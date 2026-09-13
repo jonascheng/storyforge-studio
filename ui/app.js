@@ -147,18 +147,23 @@ document.addEventListener("DOMContentLoaded", () => {
         // Header
         const header = document.createElement("div");
         header.className = "scene-header";
+        header.style.flexWrap = "wrap";
         header.innerHTML = `
-            <div class="scene-title-group">
-                <span class="scene-number">場景 ${scene.scene_id}</span>
-                <span class="scene-title">${scene.title}</span>
+            <div style="display: flex; width: 100%; justify-content: space-between; align-items: center;">
+                <div class="scene-title-group">
+                    <span class="scene-number">場景 ${scene.scene_id}</span>
+                    <span class="scene-title">${scene.title}</span>
+                </div>
+                <div class="scene-actions">
+                    <span class="audio-status ${statusClass}" id="status-${scene.scene_id}">
+                        ${statusText}
+                    </span>
+                    <button class="scene-regen-btn" id="regen-${scene.scene_id}">
+                        🎙 生成語音
+                    </button>
+                </div>
             </div>
-            <div class="scene-actions">
-                <span class="audio-status ${statusClass}" id="status-${scene.scene_id}">
-                    ${statusText}
-                </span>
-                <button class="scene-regen-btn" id="regen-${scene.scene_id}">
-                    🎙 生成語音
-                </button>
+            <div id="error-${scene.scene_id}" style="display: none; width: 100%; color: #f87171; font-size: 13px; margin-top: 10px; padding: 8px; background: rgba(248,113,113,0.1); border-radius: 6px; border: 1px solid rgba(248,113,113,0.3);">
             </div>
         `;
 
@@ -224,6 +229,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const btn = document.getElementById(`regen-${sceneId}`);
         const card = document.getElementById(`scene-card-${sceneId}`);
         const status = document.getElementById(`status-${sceneId}`);
+        const errorDiv = document.getElementById(`error-${sceneId}`);
 
         btn.disabled = true;
         btn.textContent = "處理中...";
@@ -231,6 +237,7 @@ document.addEventListener("DOMContentLoaded", () => {
         card.classList.remove("has-audio");
         status.className = "audio-status working";
         status.textContent = "⟳ 生成中...";
+        if (errorDiv) errorDiv.style.display = "none";
 
         try {
             const sceneData = currentScenes[idx];
@@ -240,6 +247,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 showToast(`場景 ${sceneId} 錯誤：${resp.error}`, "error");
                 status.className = "audio-status pending";
                 status.textContent = "✕ 失敗";
+                if (errorDiv) {
+                    errorDiv.textContent = resp.error;
+                    errorDiv.style.display = "block";
+                }
             } else {
                 audioReady[sceneId] = true;
                 card.classList.remove("generating");
@@ -252,6 +263,10 @@ document.addEventListener("DOMContentLoaded", () => {
             showToast("發生錯誤：" + e, "error");
             status.className = "audio-status pending";
             status.textContent = "✕ 失敗";
+            if (errorDiv) {
+                errorDiv.textContent = e.toString();
+                errorDiv.style.display = "block";
+            }
         } finally {
             btn.disabled = false;
             btn.textContent = "🎙 重新生成";
