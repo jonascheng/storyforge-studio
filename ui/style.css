@@ -362,5 +362,47 @@ body::before {
 .toast.success { border-color: rgba(52,211,153,0.4); color: var(--success); }
 .toast.error { border-color: rgba(248,113,113,0.4); color: var(--danger); }
 
+/* AI Suggestions */
+.safe-line-btn {
+    margin-top: 8px;
+    background: rgba(139, 92, 246, 0.15);
+    border: 1px solid rgba(139, 92, 246, 0.4);
+    color: #c4b5fd;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.2s;
+}
+.safe-line-btn:hover:not(:disabled) {
+    background: rgba(139, 92, 246, 0.25);
+    color: #ddd6fe;
+}
+.safe-line-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+.suggestions-container {
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    text-align: left;
+}
+.suggestion-item {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 8px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    color: #e2e8f0;
+    transition: background 0.2s;
+}
+.suggestion-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(139, 92, 246, 0.4);
+}
+
 /* ── Utilities ───────────────────────────────────────────── */
 .hidden { display: none !important; }

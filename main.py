@@ -130,6 +130,13 @@ class StoryForgeApi:
         except Exception as e:
             return {"error": str(e)}
 
+    def suggest_safe_lines(self, original_text: str):
+        try:
+            suggestions = self.processor.suggest_safe_lines(original_text)
+            return {"status": "ok", "suggestions": suggestions}
+        except Exception as e:
+            return {"error": str(e)}
+
     # ── 最終拼接 ──────────────────────────────────────────────────
     def mix_final_audio(self, story_name: str, scene_ids: list):
         try:

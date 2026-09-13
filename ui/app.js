@@ -248,7 +248,54 @@ document.addEventListener("DOMContentLoaded", () => {
                 status.className = "audio-status pending";
                 status.textContent = "✕ 失敗";
                 if (errorDiv) {
-                    errorDiv.textContent = resp.error;
+                    errorDiv.innerHTML = `<div>${resp.error}</div>`;
+                    if (resp.error.includes("安全審查阻擋")) {
+                        const btn = document.createElement("button");
+                        btn.className = "safe-line-btn";
+                        btn.textContent = "✨ 讓 AI 幫我想安全的台詞";
+                        
+                        const suggContainer = document.createElement("div");
+                        suggContainer.className = "suggestions-container hidden";
+                        
+                        btn.onclick = async () => {
+                            btn.textContent = "思考中...";
+                            btn.disabled = true;
+                            const match = resp.error.match(/台詞「(.*?)」/);
+                            if (match) {
+                                const originalText = match[1];
+                                const res = await api("suggest_safe_lines", originalText);
+                                if (res.suggestions && res.suggestions.length > 0) {
+                                    btn.style.display = "none"; // Hide button after success
+                                    suggContainer.innerHTML = res.suggestions.map(s => 
+                                        `<div class="suggestion-item" data-text="${s.replace(/"/g, '&quot;')}">${s}</div>`
+                                    ).join("");
+                                    suggContainer.classList.remove("hidden");
+                                    
+                                    suggContainer.querySelectorAll(".suggestion-item").forEach(el => {
+                                        el.onclick = () => {
+                                            const newText = el.getAttribute("data-text");
+                                            const lineIdx = currentScenes[idx].lines.findIndex(l => l.text === originalText);
+                                            if (lineIdx !== -1) {
+                                                currentScenes[idx].lines[lineIdx].text = newText;
+                                                api("save_screenplay_progress", currentStory, currentScenes);
+                                                const body = document.getElementById(`scene-card-${sceneId}`).querySelector(".scene-body");
+                                                const textAreas = body.querySelectorAll("textarea");
+                                                if (textAreas[lineIdx]) textAreas[lineIdx].value = newText;
+                                                
+                                                suggContainer.classList.add("hidden");
+                                                errorDiv.style.display = "none";
+                                            }
+                                        };
+                                    });
+                                } else {
+                                    btn.textContent = "無法產生建議";
+                                }
+                            }
+                        };
+                        
+                        errorDiv.appendChild(btn);
+                        errorDiv.appendChild(suggContainer);
+                    }
                     errorDiv.style.display = "block";
                 }
             } else {

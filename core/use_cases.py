@@ -15,6 +15,8 @@ class IDirector(Protocol):
     def generate_scene_audio(self, scene: Scene, voice_map: dict, output_path: str) -> str:
         ...
 
+    def suggest_safe_lines(self, original_text: str) -> list[str]:
+        ...
 
 class IStorage(Protocol):
     def save_api_key(self, key: str) -> None:
@@ -46,6 +48,9 @@ class StoryProcessor:
 
     def generate_scene_audio(self, scene: Scene, voice_map: dict, output_path: str) -> str:
         return self.director.generate_scene_audio(scene, voice_map, output_path)
+
+    def suggest_safe_lines(self, original_text: str) -> list[str]:
+        return self.director.suggest_safe_lines(original_text)
 
     def save_key(self, key: str) -> None:
         self.storage.save_api_key(key)

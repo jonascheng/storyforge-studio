@@ -93,6 +93,49 @@ class GeminiDirector(IDirector):
         except Exception as e:
             raise ValueError(f"AI 導演回傳的格式有誤: {e}")
 
+    def suggest_safe_lines(self, original_text: str) -> list[str]:
+        """當台詞被安全審查阻擋時，請 AI 提供 3 個安全的替代台詞。"""
+        self._require_key()
+        prompt = f"""這句台詞被 TTS 語音模型的安全審查阻擋了：
+「{original_text}」
+
+請提供 3 個意思相近，但用語更溫和、絕對安全的替代方案，讓它可以順利通過語音生成。
+請直接以 JSON 陣列的格式回傳這 3 個字串，例如：
+["安全替代句一", "安全替代句二", "安全替代句三"]
+"""
+        raw = self._call_director_model(prompt)
+        text = self._clean_json(raw)
+        try:
+            suggestions = json.loads(text)
+            if isinstance(suggestions, list) and all(isinstance(s, str) for s in suggestions):
+                return suggestions[:3]
+            return []
+        except Exception:
+            return []
+
+    def _build_tts_prompt(self, scene: Scene, line) -> str:
+        """根據 Google 官方 TTS 提示指南，組裝結構化 prompt。
+        
+        結構：聲音設定檔 → 場景 → 導演附註 → 轉錄稿
+        這樣做可以讓 AI 清楚分辨「這是要唸的台詞」而非「有害的對話」，
+        大幅降低被安全分類器誤殺的機率。
+        """
+        director_notes = line.voice_direction_note.strip() if line.voice_direction_note else ""
+        style_line = f"Style: {director_notes}" if director_notes else "Style: Natural, expressive reading for an audiobook."
+
+        return f"""# AUDIO PROFILE: {line.role}
+## "{scene.title}"
+
+## THE SCENE: {scene.title}
+這是一個有聲書的場景朗讀。請以角色「{line.role}」的身份，自然地朗讀以下轉錄稿。
+
+### DIRECTOR'S NOTES
+{style_line}
+
+#### TRANSCRIPT
+{line.text}
+"""
+
     def generate_scene_audio(self, scene: Scene, voice_map: dict, output_path: str) -> str:
         """逐行呼叫 TTS，拼接成場景音檔，寫入 output_path，回傳路徑。"""
         self._require_key()
@@ -102,7 +145,10 @@ class GeminiDirector(IDirector):
 
         for line in scene.lines:
             voice_name = voice_map.get(line.role, "Kore")
-            tts_prompt = f"{line.voice_direction_note} {line.text}".strip()
+
+            # 根據 Google 官方 TTS 提示指南，使用結構化 prompt
+            # 避免短句被安全分類器誤判為有害內容
+            tts_prompt = self._build_tts_prompt(scene, line)
 
             response = self._client.models.generate_content(
                 model=self.TTS_MODEL,
