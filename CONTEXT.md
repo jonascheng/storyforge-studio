@@ -64,3 +64,12 @@ _Avoid_: model parameter, reasoning level
 **劇本進度檔 (Screenplay Progress)**:
 記錄了 AI 拆解完並經過使用者修改的場景與台詞資料，自動存檔於故事資料夾中的檔案，可隨時載入恢復進度。
 _Avoid_: cache file, save state
+
+**合奏朗讀 (Multi-speaker Recording)**:
+AI 導演在一個場景中，將最多兩位角色的來回對白打包在一起同時演繹出聲音的方式，能大幅縮短錄音時間並提升對手戲的自然度。
+_Avoid_: 多人語音合成、批次 TTS
+
+**朗讀對話組 (Dialogue Group)**:
+在合奏朗讀時，由相鄰台詞且角色不超過兩位所組合而成的小段落，為單次交由 AI 導演演繹的單位（若只有一人自白則為單人朗讀組）。
+_Avoid_: batch, chunk, 對話批次
+

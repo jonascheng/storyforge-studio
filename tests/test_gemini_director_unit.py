@@ -103,6 +103,7 @@ def test_generate_content_fails_after_max_retries():
             director._generate_content_with_retry(model="any", contents="test", max_retries=2)
 
 
+
 def test_generate_content_does_not_retry_non_429():
     director = GeminiDirector(api_key="fake-key")
     mock_gen = MagicMock(side_effect=ValueError("其他錯誤"))
@@ -137,4 +138,160 @@ def test_generate_content_aborts_immediately_when_delay_exceeds_threshold():
             director._generate_content_with_retry(model="any", contents="test", max_delay=60.0)
         assert mock_sleep.call_count == 0
         assert mock_gen.call_count == 1
+
+
+
+# ── Multi-speaker Recording Tests ────────────────────────────────────────────
+
+from core.entities import ScriptLine, Scene
+
+def test_group_lines_into_dialogue_groups_alternating_two_speakers():
+    director = GeminiDirector(api_key="fake-key")
+    lines = [
+        ScriptLine(role="小明", emotion="開心", text="嗨！", voice_direction_note="[cheerful]"),
+        ScriptLine(role="小美", emotion="溫柔", text="你好呀！", voice_direction_note="[gentle]"),
+        ScriptLine(role="小明", emotion="好奇", text="今天要去哪？", voice_direction_note="[curious]"),
+        ScriptLine(role="小美", emotion="興奮", text="去森林冒險！", voice_direction_note="[excited]"),
+    ]
+    groups = director._group_lines_into_dialogue_groups(lines)
+    assert len(groups) == 1
+    assert len(groups[0]) == 4
+
+
+def test_group_lines_into_dialogue_groups_max_lines_limit():
+    director = GeminiDirector(api_key="fake-key")
+    lines = [
+        ScriptLine(role="A", emotion="", text=f"台詞 {i}", voice_direction_note="")
+        for i in range(8)
+    ]
+    # alternating A and B
+    for i, line in enumerate(lines):
+        line.role = "A" if i % 2 == 0 else "B"
+
+    groups = director._group_lines_into_dialogue_groups(lines)
+    assert len(groups) == 2
+    assert len(groups[0]) == 6
+    assert len(groups[1]) == 2
+
+
+def test_group_lines_into_dialogue_groups_three_speakers():
+    director = GeminiDirector(api_key="fake-key")
+    lines = [
+        ScriptLine(role="小明", emotion="", text="你看那邊！", voice_direction_note=""),
+        ScriptLine(role="小美", emotion="", text="那是貓咪耶！", voice_direction_note=""),
+        ScriptLine(role="小明", emotion="", text="好想摸牠。", voice_direction_note=""),
+        ScriptLine(role="媽媽", emotion="", text="不行，要先洗手。", voice_direction_note=""),
+        ScriptLine(role="小明", emotion="", text="好啦...", voice_direction_note=""),
+    ]
+    groups = director._group_lines_into_dialogue_groups(lines)
+    assert len(groups) == 2
+    # Group 1: 小明, 小美
+    assert [l.role for l in groups[0]] == ["小明", "小美", "小明"]
+    # Group 2: 媽媽, 小明
+    assert [l.role for l in groups[1]] == ["媽媽", "小明"]
+
+
+def test_group_lines_into_dialogue_groups_character_length_limit():
+    director = GeminiDirector(api_key="fake-key")
+    long_text = "這是一段很長很長的話，說了好多好多細節。" * 6  # ~144 chars
+    lines = [
+        ScriptLine(role="A", emotion="", text=long_text, voice_direction_note=""),
+        ScriptLine(role="B", emotion="", text=long_text, voice_direction_note=""),
+        ScriptLine(role="A", emotion="", text=long_text, voice_direction_note=""),
+    ]
+    groups = director._group_lines_into_dialogue_groups(lines)
+    # 144 + 144 = 288 (<300). 3rd line would make 432 (>300), so cut into new group.
+    assert len(groups) == 2
+    assert len(groups[0]) == 2
+    assert len(groups[1]) == 1
+
+
+def test_build_multi_speaker_prompt():
+    director = GeminiDirector(api_key="fake-key")
+    scene = Scene(scene_id=1, title="神秘森林", lines=[])
+    group = [
+        ScriptLine(role="小明", emotion="興奮", text="快看！", voice_direction_note="[excited]"),
+        ScriptLine(role="小美", emotion="害怕", text="那是怪獸嗎？", voice_direction_note="[trembling]"),
+    ]
+    speaker_map = {"小明": "Speaker_1", "小美": "Speaker_2"}
+    prompt = director._build_multi_speaker_prompt(scene, group, speaker_map)
+
+    assert "Speaker_1" in prompt
+    assert "Speaker_2" in prompt
+    assert "快看！" in prompt
+    assert "那是怪獸嗎？" in prompt
+    assert "[excited]" in prompt
+    assert "[trembling]" in prompt
+
+
+def test_generate_scene_audio_calls_multi_speaker_and_exports():
+    from pydub import AudioSegment
+    director = GeminiDirector(api_key="fake-key")
+    scene = Scene(
+        scene_id=1,
+        title="對話場景",
+        lines=[
+            ScriptLine(role="小明", emotion="開心", text="嗨！", voice_direction_note=""),
+            ScriptLine(role="小美", emotion="溫柔", text="你好！", voice_direction_note=""),
+        ]
+    )
+    voice_map = {"小明": "Kore", "小美": "Puck"}
+
+    # Mock audio response
+    mock_resp = MagicMock()
+    mock_part = MagicMock()
+    # 1000 samples of 16-bit PCM = 2000 bytes
+    mock_part.inline_data.data = b"\x00\x00" * 1000
+    mock_part.inline_data.mime_type = "audio/pcm;rate=24000"
+    mock_resp.candidates = [MagicMock(content=MagicMock(parts=[mock_part]))]
+
+    with patch.object(director, "_generate_content_with_retry", return_value=mock_resp) as mock_gen, \
+         patch.object(AudioSegment, "export") as mock_export:
+        out = director.generate_scene_audio(scene, voice_map, "/tmp/test_scene.mp3")
+
+        assert out == "/tmp/test_scene.mp3"
+        assert mock_gen.call_count == 1  # 2 lines in 1 multi-speaker call!
+        # Verify speech config in call
+        config_used = mock_gen.call_args[1]["config"]
+        assert config_used.speech_config.multi_speaker_voice_config is not None
+        mock_export.assert_called_once_with("/tmp/test_scene.mp3", format="mp3")
+
+
+def test_generate_scene_audio_falls_back_to_single_speaker_on_failure():
+    from pydub import AudioSegment
+    director = GeminiDirector(api_key="fake-key")
+    scene = Scene(
+        scene_id=1,
+        title="對話場景",
+        lines=[
+            ScriptLine(role="小明", emotion="開心", text="嗨！", voice_direction_note=""),
+            ScriptLine(role="小美", emotion="溫柔", text="你好！", voice_direction_note=""),
+        ]
+    )
+    voice_map = {"小明": "Kore", "小美": "Puck"}
+
+    mock_resp_success = MagicMock()
+    mock_part = MagicMock()
+    mock_part.inline_data.data = b"\x00\x00" * 1000
+    mock_part.inline_data.mime_type = "audio/pcm;rate=24000"
+    mock_resp_success.candidates = [MagicMock(content=MagicMock(parts=[mock_part]))]
+
+    # First call (multi-speaker) fails with ValueError, next 2 calls (single-speaker) succeed
+    call_count = 0
+    def mock_generate(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        config = kwargs.get("config")
+        if config and config.speech_config and config.speech_config.multi_speaker_voice_config:
+            raise ValueError("AI 安全審查阻擋合奏")
+        return mock_resp_success
+
+    with patch.object(director, "_generate_content_with_retry", side_effect=mock_generate), \
+         patch.object(AudioSegment, "export") as mock_export:
+        out = director.generate_scene_audio(scene, voice_map, "/tmp/test_scene.mp3")
+
+        assert out == "/tmp/test_scene.mp3"
+        # 1 multi-speaker attempt + 2 single-speaker fallback calls = 3 calls total
+        assert call_count == 3
+        mock_export.assert_called_once_with("/tmp/test_scene.mp3", format="mp3")
 

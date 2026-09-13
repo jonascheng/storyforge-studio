@@ -202,79 +202,218 @@ class GeminiDirector(IDirector):
 {line.text}
 """
 
+    def _decode_audio_data(self, audio_data: bytes, mime_type: str):
+        from pydub import AudioSegment
+        if not mime_type or "L16" in mime_type or "pcm" in mime_type.lower() or "raw" in mime_type.lower():
+            rate = 24000
+            for part_str in mime_type.split(";"):
+                part_str = part_str.strip()
+                if part_str.lower().startswith("rate="):
+                    try:
+                        rate = int(part_str.split("=")[1])
+                    except ValueError:
+                        pass
+            return AudioSegment(
+                data=audio_data,
+                sample_width=2,   # 16-bit
+                frame_rate=rate,
+                channels=1,
+            )
+        else:
+            try:
+                return AudioSegment.from_file(io.BytesIO(audio_data))
+            except Exception as e:
+                print(f"DEBUG: from_file failed: {e}. Trying raw PCM fallback.")
+                return AudioSegment(
+                    data=audio_data,
+                    sample_width=2,
+                    frame_rate=24000,
+                    channels=1,
+                )
+
+    def _group_lines_into_dialogue_groups(
+        self,
+        lines: list[ScriptLine],
+        max_lines: int = 6,
+        max_chars: int = 300,
+    ) -> list[list[ScriptLine]]:
+        """依台詞順序將場景台詞切分為朗讀對話組（最多 2 位角色，上限 max_lines 句或 max_chars 字）。"""
+        if not lines:
+            return []
+
+        groups: list[list[ScriptLine]] = []
+        current_group: list[ScriptLine] = []
+        current_roles: set[str] = set()
+        current_chars: int = 0
+
+        for line in lines:
+            would_be_roles = current_roles | {line.role}
+            would_be_chars = current_chars + len(line.text)
+
+            if current_group and (
+                len(would_be_roles) > 2
+                or len(current_group) >= max_lines
+                or would_be_chars > max_chars
+            ):
+                groups.append(current_group)
+                current_group = [line]
+                current_roles = {line.role}
+                current_chars = len(line.text)
+            else:
+                current_group.append(line)
+                current_roles.add(line.role)
+                current_chars += len(line.text)
+
+        if current_group:
+            groups.append(current_group)
+
+        return groups
+
+    def _build_multi_speaker_prompt(
+        self,
+        scene: Scene,
+        group: list[ScriptLine],
+        speaker_map: dict[str, str],
+    ) -> str:
+        """建構多角色合奏朗讀的提示詞。"""
+        roles_desc = "\n".join(
+            f"- {speaker_map[role]} 代表角色「{role}」"
+            for role in speaker_map
+        )
+        transcript_lines = []
+        for line in group:
+            spk = speaker_map[line.role]
+            note_str = f" {line.voice_direction_note}" if line.voice_direction_note else ""
+            transcript_lines.append(f"{spk}:{note_str} {line.text}")
+        transcript = "\n".join(transcript_lines)
+
+        return f"""## THE SCENE: {scene.title}
+這是有聲書的場景朗讀。請依序生動地演繹以下角色的對話。
+
+### CHARACTERS
+{roles_desc}
+
+#### TRANSCRIPT
+{transcript}
+"""
+
+    def _generate_single_line_audio(self, scene: Scene, line: ScriptLine, voice_map: dict):
+        """單行錄音呼叫。"""
+        voice_name = voice_map.get(line.role, "Kore")
+        tts_prompt = self._build_tts_prompt(scene, line)
+
+        response = self._generate_content_with_retry(
+            model=self.TTS_MODEL,
+            contents=tts_prompt,
+            config=types.GenerateContentConfig(
+                response_modalities=["AUDIO"],
+                speech_config=types.SpeechConfig(
+                    voice_config=types.VoiceConfig(
+                        prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                            voice_name=voice_name,
+                        )
+                    )
+                ),
+            ),
+        )
+
+        if not response.candidates:
+            reason = "未知原因"
+            if response.prompt_feedback and hasattr(response.prompt_feedback, "block_reason"):
+                reason = str(getattr(response.prompt_feedback.block_reason, "name", response.prompt_feedback.block_reason))
+            raise ValueError(f"台詞「{line.text}」遭到 AI 安全審查阻擋 (原因: {reason})")
+
+        part = response.candidates[0].content.parts[0].inline_data
+        return self._decode_audio_data(part.data, part.mime_type or "")
+
+    def _generate_multi_speaker_group_audio(
+        self,
+        scene: Scene,
+        group: list[ScriptLine],
+        voice_map: dict,
+    ):
+        """雙角色合奏錄音呼叫。"""
+        roles = list(dict.fromkeys(l.role for l in group))
+        speaker_map = {roles[0]: "Speaker_1", roles[1]: "Speaker_2"}
+
+        tts_prompt = self._build_multi_speaker_prompt(scene, group, speaker_map)
+
+        speaker_voice_configs = [
+            types.SpeakerVoiceConfig(
+                speaker="Speaker_1",
+                voice_config=types.VoiceConfig(
+                    prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                        voice_name=voice_map.get(roles[0], "Kore"),
+                    )
+                ),
+            ),
+            types.SpeakerVoiceConfig(
+                speaker="Speaker_2",
+                voice_config=types.VoiceConfig(
+                    prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                        voice_name=voice_map.get(roles[1], "Puck"),
+                    )
+                ),
+            ),
+        ]
+
+        response = self._generate_content_with_retry(
+            model=self.TTS_MODEL,
+            contents=tts_prompt,
+            config=types.GenerateContentConfig(
+                response_modalities=["AUDIO"],
+                speech_config=types.SpeechConfig(
+                    multi_speaker_voice_config=types.MultiSpeakerVoiceConfig(
+                        speaker_voice_configs=speaker_voice_configs,
+                    )
+                ),
+            ),
+        )
+
+        if not response.candidates:
+            reason = "未知原因"
+            if response.prompt_feedback and hasattr(response.prompt_feedback, "block_reason"):
+                reason = str(getattr(response.prompt_feedback.block_reason, "name", response.prompt_feedback.block_reason))
+            raise ValueError(f"合奏對話遭到 AI 安全審查阻擋 (原因: {reason})")
+
+        part = response.candidates[0].content.parts[0].inline_data
+        return self._decode_audio_data(part.data, part.mime_type or "")
+
     def generate_scene_audio(self, scene: Scene, voice_map: dict, output_path: str) -> str:
-        """逐行呼叫 TTS，拼接成場景音檔，寫入 output_path，回傳路徑。"""
+        """以朗讀對話組為單位生成語音，支援雙角色合奏與自動降級單人錄音，拼接成場景音檔。"""
         self._require_key()
         from pydub import AudioSegment
 
         combined = AudioSegment.empty()
+        groups = self._group_lines_into_dialogue_groups(scene.lines)
 
-        for line in scene.lines:
-            voice_name = voice_map.get(line.role, "Kore")
+        for group in groups:
+            group_roles = list(dict.fromkeys(l.role for l in group))
+            group_audio = None
 
-            # 根據 Google 官方 TTS 提示指南，使用結構化 prompt
-            # 避免短句被安全分類器誤判為有害內容
-            tts_prompt = self._build_tts_prompt(scene, line)
-
-            response = self._generate_content_with_retry(
-                model=self.TTS_MODEL,
-                contents=tts_prompt,
-                config=types.GenerateContentConfig(
-                    response_modalities=["AUDIO"],
-                    speech_config=types.SpeechConfig(
-                        voice_config=types.VoiceConfig(
-                            prebuilt_voice_config=types.PrebuiltVoiceConfig(
-                                voice_name=voice_name,
-                            )
-                        )
-                    ),
-                ),
-            )
-
-            if not response.candidates:
-                reason = "未知原因"
-                if response.prompt_feedback and hasattr(response.prompt_feedback, "block_reason"):
-                    reason = str(getattr(response.prompt_feedback.block_reason, "name", response.prompt_feedback.block_reason))
-                raise ValueError(f"台詞「{line.text}」遭到 AI 安全審查阻擋 (原因: {reason})")
-
-            part = response.candidates[0].content.parts[0].inline_data
-            audio_data = part.data
-            mime_type = part.mime_type or ""
-
-            print(f"DEBUG: TTS line: '{line.text}'")
-            print(f"DEBUG: TTS returned mime_type: '{mime_type}', data length: {len(audio_data)} bytes")
-
-            # 預設為 raw PCM，如果沒有給 mime_type 或者是 pcm/L16
-            if not mime_type or "L16" in mime_type or "pcm" in mime_type.lower() or "raw" in mime_type.lower():
-                print("DEBUG: Processing as raw 16-bit PCM (24000Hz)")
-                rate = 24000
-                for part_str in mime_type.split(";"):
-                    part_str = part_str.strip()
-                    if part_str.lower().startswith("rate="):
-                        try:
-                            rate = int(part_str.split("=")[1])
-                        except ValueError:
-                            pass
-                segment = AudioSegment(
-                    data=audio_data,
-                    sample_width=2,   # 16-bit
-                    frame_rate=rate,
-                    channels=1,
-                )
-            else:
-                print(f"DEBUG: Processing as {mime_type} via from_file")
+            # 若組內恰好為 2 位角色，優先嘗試雙角色合奏朗讀
+            if len(group_roles) == 2:
                 try:
-                    segment = AudioSegment.from_file(io.BytesIO(audio_data))
+                    print(f"DEBUG: 嘗試雙角色合奏朗讀 ({group_roles[0]} & {group_roles[1]}, 共 {len(group)} 句)...")
+                    group_audio = self._generate_multi_speaker_group_audio(scene, group, voice_map)
                 except Exception as e:
-                    print(f"DEBUG: from_file failed: {e}. Trying raw PCM fallback.")
-                    segment = AudioSegment(
-                        data=audio_data,
-                        sample_width=2,
-                        frame_rate=24000,
-                        channels=1,
-                    )
+                    print(f"DEBUG: 雙角色合奏失敗 ({e})，自動降級為單人逐行錄音備案...")
+                    group_audio = None
 
-            combined += segment
+            # 若不是 2 位角色，或雙角色合奏失敗，執行單人逐行錄音
+            if group_audio is None:
+                group_segment = AudioSegment.empty()
+                for line in group:
+                    line_audio = self._generate_single_line_audio(scene, line, voice_map)
+                    group_segment += line_audio
+                group_audio = group_segment
+
+            # 組間加入 300ms 自然呼吸停頓
+            if len(combined) > 0:
+                combined += AudioSegment.silent(duration=300)
+
+            combined += group_audio
 
         combined.export(output_path, format="mp3")
         return output_path
+
