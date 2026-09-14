@@ -57,6 +57,25 @@
         </main>
     </div>
 
+    <!-- Story Selector Modal -->
+    <div class="modal hidden" id="storySelectorModal">
+        <div class="modal-content glass-panel story-selector-modal">
+            <div class="story-selector-header">
+                <h2>📂 載入既有故事</h2>
+                <p>請點選要繼續製作的故事，或直接從電腦中瀏覽選取資料夾。</p>
+            </div>
+            <div class="story-list-container" id="storyListContainer">
+                <!-- Story items injected here -->
+            </div>
+            <div class="modal-actions story-selector-actions">
+                <button class="secondary-btn" id="btnBrowseFolder">
+                    <span>📁 從電腦資料夾瀏覽...</span>
+                </button>
+                <button class="secondary-btn" id="btnCloseStorySelector">關閉</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Settings Modal -->
     <div class="modal hidden" id="settingsModal">
         <div class="modal-content glass-panel">

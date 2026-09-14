@@ -1,12 +1,14 @@
 import os
+import json
+import datetime
 
 BASE_DIR = os.path.join(os.path.expanduser("~"), "Documents", "StoryForge")
 
 
 class StoryFolderStorage:
-    def __init__(self, story_name: str):
+    def __init__(self, story_name: str, folder_path: str = None):
         self.story_name = story_name
-        self.folder_path = os.path.join(BASE_DIR, story_name)
+        self.folder_path = folder_path if folder_path else os.path.join(BASE_DIR, story_name)
 
     def ensure_folder(self) -> None:
         os.makedirs(self.folder_path, exist_ok=True)
@@ -21,12 +23,10 @@ class StoryFolderStorage:
         return os.path.join(self.folder_path, "screenplay.json")
 
     def save_screenplay(self, scenes_data: list) -> None:
-        import json
         with open(self.screenplay_path(), "w", encoding="utf-8") as f:
             json.dump(scenes_data, f, ensure_ascii=False, indent=2)
 
     def load_screenplay(self) -> list:
-        import json
         path = self.screenplay_path()
         if not os.path.exists(path):
             return []
@@ -35,3 +35,36 @@ class StoryFolderStorage:
                 return json.load(f)
             except json.JSONDecodeError:
                 return []
+
+    @classmethod
+    def list_stories(cls, base_dir: str = BASE_DIR) -> list:
+        if not os.path.exists(base_dir):
+            return []
+        results = []
+        try:
+            for entry in os.scandir(base_dir):
+                if entry.is_dir():
+                    sc_path = os.path.join(entry.path, "screenplay.json")
+                    if os.path.exists(sc_path):
+                        mtime = os.path.getmtime(sc_path)
+                        updated_at = datetime.datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M")
+                        count = 0
+                        try:
+                            with open(sc_path, "r", encoding="utf-8") as f:
+                                data = json.load(f)
+                                if isinstance(data, list):
+                                    count = len(data)
+                        except Exception:
+                            pass
+                        results.append({
+                            "name": entry.name,
+                            "scene_count": count,
+                            "updated_at": updated_at,
+                            "folder_path": entry.path,
+                            "mtime": mtime,
+                        })
+        except Exception:
+            return []
+        results.sort(key=lambda x: x["mtime"], reverse=True)
+        return results
+

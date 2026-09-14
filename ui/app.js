@@ -12,6 +12,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const btnBreakdown     = document.getElementById("btnBreakdown");
     const btnLoadScreenplay = document.getElementById("btnLoadScreenplay");
 
+    const storySelectorModal   = document.getElementById("storySelectorModal");
+    const storyListContainer   = document.getElementById("storyListContainer");
+    const btnBrowseFolder     = document.getElementById("btnBrowseFolder");
+    const btnCloseStorySelector = document.getElementById("btnCloseStorySelector");
+
     const scenesSection    = document.getElementById("scenesSection");
     const scenesList       = document.getElementById("scenesList");
     const storyNameBadge   = document.getElementById("storyNameBadge");
@@ -142,36 +147,131 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    // ── Step 1.5: Load Old Screenplay ─────────────────────────
-    btnLoadScreenplay.addEventListener("click", async () => {
-        const name = storyNameInput.value.trim();
-        if (!name) { showToast("請先輸入故事名稱！", "error"); return; }
+    // ── Helper: Apply loaded screenplay data to UI ──────────
+    function applyLoadedStory(name, resp) {
+        currentStory  = resp.story_name || name;
+        storyNameInput.value = currentStory;
+        storyInput.value = "";
+        currentScenes = resp.scenes || [];
+        audioReady    = {};
+        if (resp.audio_ready_ids) {
+            resp.audio_ready_ids.forEach(id => { audioReady[id] = true; });
+        }
 
-        setBtnLoading(btnLoadScreenplay, true, "讀取中...");
-        
+        storyNameBadge.textContent = "📖 " + currentStory;
+        renderScenes();
+        scenesSection.classList.remove("hidden");
+        scenesSection.scrollIntoView({ behavior: "smooth" });
+        showToast(`成功載入故事「${currentStory}」！共 ${currentScenes.length} 個場景 ✓`);
+    }
+
+    // ── Step 1.5: Story Selector Modal & Folder Picker ────────
+    btnLoadScreenplay.addEventListener("click", async () => {
+        // 防呆：若原稿輸入框已有未拆解文字，提示確認
+        if (storyInput.value.trim().length > 0) {
+            if (typeof window.confirm === "function") {
+                const confirmed = window.confirm("故事原稿輸入框中已有文字，載入舊劇本將會清除這些文字，是否繼續？");
+                if (!confirmed) return;
+            }
+        }
+
+        // 開啟故事選單視窗並載入清單
+        storyListContainer.innerHTML = '<div class="story-empty-hint">正在讀取既有故事清單...</div>';
+        storySelectorModal.classList.remove("hidden");
+
         try {
-            const resp = await api("load_screenplay", name);
-            if (resp.error) {
-                showToast(resp.error, "error");
+            const resp = await api("list_stories");
+            if (resp && resp.error) {
+                storyListContainer.innerHTML = `<div class="story-empty-hint">讀取故事清單失敗：${resp.error}</div>`;
                 return;
             }
 
-            currentStory  = name;
-            currentScenes = resp.scenes;
-            audioReady    = {};
-            if (resp.audio_ready_ids) {
-                resp.audio_ready_ids.forEach(id => { audioReady[id] = true; });
+            const stories = (resp && resp.stories) ? resp.stories : [];
+            if (stories.length === 0) {
+                storyListContainer.innerHTML = '<div class="story-empty-hint">目前沒有找到任何既有故事<br><small style="color: var(--text-muted); margin-top: 6px; display: inline-block;">您可以點選下方按鈕直接從電腦資料夾挑選</small></div>';
+                return;
             }
 
-            storyNameBadge.textContent = "📖 " + name;
-            renderScenes();
-            scenesSection.classList.remove("hidden");
-            scenesSection.scrollIntoView({ behavior: "smooth" });
-            showToast(`成功載入舊劇本！共 ${currentScenes.length} 個場景 ✓`);
+            storyListContainer.innerHTML = "";
+            stories.forEach(story => {
+                const item = document.createElement("div");
+                item.className = "story-item";
+
+                const infoDiv = document.createElement("div");
+                infoDiv.className = "story-item-info";
+
+                const titleDiv = document.createElement("div");
+                titleDiv.className = "story-item-title";
+                titleDiv.textContent = "📖 " + story.name;
+
+                const metaDiv = document.createElement("div");
+                metaDiv.className = "story-item-meta";
+
+                const badge = document.createElement("span");
+                badge.className = "story-item-badge";
+                badge.textContent = `🎬 ${story.scene_count} 個場景`;
+
+                const timeSpan = document.createElement("span");
+                timeSpan.textContent = `🕒 ${story.updated_at}`;
+
+                metaDiv.appendChild(badge);
+                metaDiv.appendChild(timeSpan);
+                infoDiv.appendChild(titleDiv);
+                infoDiv.appendChild(metaDiv);
+
+                const arrowDiv = document.createElement("div");
+                arrowDiv.style.fontSize = "13px";
+                arrowDiv.style.color = "var(--accent2)";
+                arrowDiv.textContent = "載入 ➔";
+
+                item.appendChild(infoDiv);
+                item.appendChild(arrowDiv);
+
+                item.addEventListener("click", async () => {
+                    storySelectorModal.classList.add("hidden");
+                    setBtnLoading(btnLoadScreenplay, true, "讀取中...");
+                    try {
+                        const loadResp = await api("load_screenplay", story.name);
+                        if (loadResp.error) {
+                            showToast(loadResp.error, "error");
+                            return;
+                        }
+                        applyLoadedStory(story.name, loadResp);
+                    } catch (e) {
+                        showToast("發生錯誤：" + e, "error");
+                    } finally {
+                        setBtnLoading(btnLoadScreenplay, false, "📂 載入舊劇本");
+                    }
+                });
+
+                storyListContainer.appendChild(item);
+            });
         } catch (e) {
-            showToast("發生錯誤：" + e, "error");
+            storyListContainer.innerHTML = `<div class="story-empty-hint">發生錯誤：${e}</div>`;
+        }
+    });
+
+    btnCloseStorySelector.addEventListener("click", () => {
+        storySelectorModal.classList.add("hidden");
+    });
+
+    btnBrowseFolder.addEventListener("click", async () => {
+        btnBrowseFolder.disabled = true;
+        try {
+            const resp = await api("select_story_folder");
+            if (resp && resp.cancelled) {
+                return;
+            }
+            if (resp && resp.error) {
+                showToast(resp.error, "error");
+                return;
+            }
+            storySelectorModal.classList.add("hidden");
+            applyLoadedStory(resp.story_name, resp);
+        } catch (e) {
+            showToast("選取資料夾失敗：" + e, "error");
         } finally {
-            setBtnLoading(btnLoadScreenplay, false, "📂 載入舊劇本");
+            btnBrowseFolder.disabled = false;
         }
     });
 
