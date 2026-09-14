@@ -94,7 +94,8 @@ class StoryForgeApi:
             if not window:
                 return {"error": "無法開啟檔案選取視窗"}
             initial_dir = BASE_DIR if os.path.exists(BASE_DIR) else os.path.expanduser("~")
-            res = window.create_file_dialog(webview.FOLDER_DIALOG, directory=initial_dir)
+            folder_dialog_type = getattr(webview.FileDialog, "FOLDER", getattr(webview, "FOLDER_DIALOG", 20))
+            res = window.create_file_dialog(folder_dialog_type, directory=initial_dir)
             if not res:
                 return {"cancelled": True}
             folder_path = res[0]
