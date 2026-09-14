@@ -21,14 +21,32 @@
    uv sync
    ```
 
-3. **啟動本機開發介面**：
+3. **啟用本機門口哨兵 (Git Hooks)**：
+   ```bash
+   git config core.hooksPath .githooks
+   ```
+
+4. **啟動本機開發介面**：
    ```bash
    uv run storyforge
    # 或
    uv run python main.py
    ```
 
-4. **驗證所有自動化測試**：
+5. **執行程式碼風格檢查與自動排版**：
+   ```bash
+   # 檢查品質與瑕疵
+   uv run ruff check .
+
+   # 檢查排版風格
+   uv run ruff format --check .
+
+   # 自動修復可修正之問題
+   uv run ruff check --fix .
+   uv run ruff format .
+   ```
+
+6. **驗證所有自動化測試**：
    ```bash
    uv run pytest
    ```
@@ -84,6 +102,7 @@
 ### 送出 Pull Request (PR) 檢核清單
 在提交 PR 之前，請確認：
 - [ ] 遵循 Clean Architecture 架構分層。
+- [ ] 執行 `uv run ruff check .` 與 `uv run ruff format --check .` 確認排版與品質檢查全數通過。
 - [ ] 執行 `uv run pytest` 確認所有測試 100% 通過。
 - [ ] 新增或修改的功能具備對應的單元或整合測試。
 - [ ] 若涉及重要決策，已撰寫或更新對應的 [ADR (Architecture Decision Record)](docs/adr/)。

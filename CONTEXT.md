@@ -77,4 +77,10 @@ _Avoid_: batch, chunk, 對話批次
 記錄 API 通行證與思考深度設定的秘密筆記本，自動儲存於個人的 `~/Documents/StoryForge/storyforge_config.json`，不管在電腦哪個角落開啟都能記住。
 _Avoid_: 設定檔、環境變數、.env
 
+**本地哨兵 (Pre-commit Hook)**:
+在電腦本機每次要把改好的故事程式積木存檔打包前，在門口快檢檔案有沒有排整齊的小幫手。
+_Avoid_: pre-commit script, hook
 
+**雲端守門員 (GitHub CI)**:
+當把寫好的故事程式送到 GitHub 雲端時，自動在雲端乾淨電腦裡替我們把所有積木全部重新檢查與跑測試的自動化機器人。
+_Avoid_: CI/CD, pipeline, Actions runner

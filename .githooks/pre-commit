@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# StoryForge 本地端門口哨兵 (Pre-commit Hook)
+# 只檢查本次暫存 (staged) 的 Python 檔案
+
+set -e
+
+# 取得本次 git add 暫存的新增、複製、修改之 Python 檔案
+STAGED_PY_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep '\.py$' || true)
+
+if [ -z "$STAGED_PY_FILES" ]; then
+    exit 0
+fi
+
+echo "🔍 [本地哨兵] 正在檢查本次暫存的 Python 檔案..."
+
+LINT_ERR=0
+FORMAT_ERR=0
+
+# 1. 程式碼品質與錯誤檢查
+if ! uv run ruff check $STAGED_PY_FILES; then
+    LINT_ERR=1
+fi
+
+# 2. 程式碼排版風格檢查
+if ! uv run ruff format --check $STAGED_PY_FILES; then
+    FORMAT_ERR=1
+fi
+
+if [ $LINT_ERR -ne 0 ] || [ $FORMAT_ERR -ne 0 ]; then
+    echo ""
+    echo "❌ [本地哨兵] 發現本次存檔的程式積木有瑕疵或沒排整齊！"
+    echo "💡 請執行下列指令快速整理修正，並重新 git add 後再次存檔："
+    echo "   uv run ruff check --fix $STAGED_PY_FILES"
+    echo "   uv run ruff format $STAGED_PY_FILES"
+    echo ""
+    exit 1
+fi
+
+echo "✅ [本地哨兵] 檢查全數通過，放行存檔！"
+exit 0

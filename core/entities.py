@@ -1,5 +1,4 @@
-from dataclasses import dataclass, asdict
-from typing import List, Optional
+from dataclasses import asdict, dataclass
 
 
 @dataclass
@@ -17,8 +16,8 @@ class ScriptLine:
 class Scene:
     scene_id: int
     title: str
-    lines: List[ScriptLine]
-    audio_path: Optional[str] = None
+    lines: list[ScriptLine]
+    audio_path: str | None = None
 
     def to_dict(self):
         return {
@@ -31,7 +30,7 @@ class Scene:
 
 @dataclass
 class Screenplay:
-    scenes: List[Scene]
+    scenes: list[Scene]
 
     def to_dict(self):
         return {"scenes": [scene.to_dict() for scene in self.scenes]}
@@ -40,7 +39,7 @@ class Screenplay:
 # 向後相容 — 舊 Script 仍可用
 @dataclass
 class Script:
-    lines: List[ScriptLine]
+    lines: list[ScriptLine]
 
     def to_dict(self):
         return {"lines": [asdict(line) for line in self.lines]}

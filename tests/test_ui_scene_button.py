@@ -1,5 +1,6 @@
-import subprocess
 import os
+import subprocess
+
 
 def test_loaded_screenplay_scene_button_text():
     """驗證載入已有語音的舊劇本時，按鈕文字應正確顯示為『🎙 重新生成』"""
@@ -118,7 +119,7 @@ loadHandler();
         ["node", "-e", node_script],
         capture_output=True,
         text=True,
-        cwd=os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        cwd=os.path.abspath(os.path.join(os.path.dirname(__file__), "..")),
     )
     assert result.returncode == 0, f"測試未通過: {result.stderr or result.stdout}"
 
@@ -191,7 +192,7 @@ console.log('SUCCESS');
         ["node", "-e", node_script],
         capture_output=True,
         text=True,
-        cwd=os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        cwd=os.path.abspath(os.path.join(os.path.dirname(__file__), "..")),
     )
     assert result.returncode == 0, f"測試未通過: {result.stderr or result.stdout}"
 
@@ -314,7 +315,6 @@ loadHandler();
         ["node", "-e", node_script],
         capture_output=True,
         text=True,
-        cwd=os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        cwd=os.path.abspath(os.path.join(os.path.dirname(__file__), "..")),
     )
     assert result.returncode == 0, f"測試未通過: {result.stderr or result.stdout}"
-

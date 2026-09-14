@@ -1,6 +1,6 @@
-import os
-import json
 import datetime
+import json
+import os
 
 BASE_DIR = os.path.join(os.path.expanduser("~"), "Documents", "StoryForge")
 
@@ -30,7 +30,7 @@ class StoryFolderStorage:
         path = self.screenplay_path()
         if not os.path.exists(path):
             return []
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             try:
                 return json.load(f)
             except json.JSONDecodeError:
@@ -47,24 +47,27 @@ class StoryFolderStorage:
                     sc_path = os.path.join(entry.path, "screenplay.json")
                     if os.path.exists(sc_path):
                         mtime = os.path.getmtime(sc_path)
-                        updated_at = datetime.datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M")
+                        updated_at = datetime.datetime.fromtimestamp(mtime).strftime(
+                            "%Y-%m-%d %H:%M"
+                        )
                         count = 0
                         try:
-                            with open(sc_path, "r", encoding="utf-8") as f:
+                            with open(sc_path, encoding="utf-8") as f:
                                 data = json.load(f)
                                 if isinstance(data, list):
                                     count = len(data)
                         except Exception:
                             pass
-                        results.append({
-                            "name": entry.name,
-                            "scene_count": count,
-                            "updated_at": updated_at,
-                            "folder_path": entry.path,
-                            "mtime": mtime,
-                        })
+                        results.append(
+                            {
+                                "name": entry.name,
+                                "scene_count": count,
+                                "updated_at": updated_at,
+                                "folder_path": entry.path,
+                                "mtime": mtime,
+                            }
+                        )
         except Exception:
             return []
         results.sort(key=lambda x: x["mtime"], reverse=True)
         return results
-

@@ -1,5 +1,5 @@
-import os
 import json
+import os
 
 
 class VoiceMapStorage:
@@ -9,7 +9,7 @@ class VoiceMapStorage:
     def load(self) -> dict:
         if not os.path.exists(self.path):
             return {}
-        with open(self.path, "r", encoding="utf-8") as f:
+        with open(self.path, encoding="utf-8") as f:
             try:
                 return json.load(f)
             except json.JSONDecodeError:

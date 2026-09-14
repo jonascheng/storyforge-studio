@@ -42,17 +42,24 @@
 
 from core.entities import ScriptLine, Scene, Screenplay
 
+
 def test_script_line_has_voice_direction_note():
-    line = ScriptLine(role="旁白", emotion="平靜", text="從前從前...", voice_direction_note="[calm, slow]")
+    line = ScriptLine(
+        role="旁白", emotion="平靜", text="從前從前...", voice_direction_note="[calm, slow]"
+    )
     assert line.voice_direction_note == "[calm, slow]"
 
+
 def test_scene_creation():
-    line = ScriptLine(role="旁白", emotion="平靜", text="從前從前...", voice_direction_note="[calm]")
+    line = ScriptLine(
+        role="旁白", emotion="平靜", text="從前從前...", voice_direction_note="[calm]"
+    )
     scene = Scene(scene_id=1, title="開場白", lines=[line])
     assert scene.scene_id == 1
     assert scene.title == "開場白"
     assert len(scene.lines) == 1
     assert scene.audio_path is None
+
 
 def test_scene_to_dict():
     line = ScriptLine(role="小明", emotion="開心", text="你好！", voice_direction_note="[cheerful]")
@@ -63,11 +70,13 @@ def test_scene_to_dict():
     assert data["lines"][0]["voice_direction_note"] == "[cheerful]"
     assert data["audio_path"] is None
 
+
 def test_screenplay_creation():
     line = ScriptLine(role="旁白", emotion="平靜", text="結束。", voice_direction_note="[calm]")
     scene = Scene(scene_id=1, title="結局", lines=[line])
     screenplay = Screenplay(scenes=[scene])
     assert len(screenplay.scenes) == 1
+
 
 def test_screenplay_to_dict():
     line = ScriptLine(role="旁白", emotion="平靜", text="結束。", voice_direction_note="[calm]")
@@ -94,6 +103,7 @@ uv run pytest tests/test_core.py -v -k "voice_direction or scene or screenplay"
 from dataclasses import dataclass, asdict, field
 from typing import List, Optional
 
+
 @dataclass
 class ScriptLine:
     role: str
@@ -103,6 +113,7 @@ class ScriptLine:
 
     def to_dict(self):
         return asdict(self)
+
 
 @dataclass
 class Scene:
@@ -119,12 +130,14 @@ class Scene:
             "audio_path": self.audio_path,
         }
 
+
 @dataclass
 class Screenplay:
     scenes: List[Scene]
 
     def to_dict(self):
         return {"scenes": [scene.to_dict() for scene in self.scenes]}
+
 
 # 向後相容 — 舊 Script 仍可用，指向 Screenplay
 @dataclass
@@ -174,10 +187,18 @@ git commit -m "feat: add Scene and Screenplay entities with voice_direction_note
 from core.entities import Screenplay, Scene, ScriptLine
 from core.use_cases import StoryProcessor
 
+
 class MockDirectorV2:
     def break_down_script(self, story_text: str):
         from core.entities import Script
-        return Script(lines=[ScriptLine(role="旁白", emotion="平靜", text="這是一個測試故事。", voice_direction_note="")])
+
+        return Script(
+            lines=[
+                ScriptLine(
+                    role="旁白", emotion="平靜", text="這是一個測試故事。", voice_direction_note=""
+                )
+            ]
+        )
 
     def break_down_screenplay(self, story_text: str) -> Screenplay:
         line = ScriptLine(role="旁白", emotion="平靜", text="測試。", voice_direction_note="[calm]")
@@ -190,6 +211,7 @@ class MockDirectorV2:
     def generate_scene_audio(self, scene: Scene, voice_map: dict, output_path: str) -> str:
         return output_path
 
+
 class MockStorageV2:
     def save_api_key(self, key: str) -> None:
         self.key = key
@@ -197,11 +219,13 @@ class MockStorageV2:
     def get_api_key(self) -> str:
         return getattr(self, "key", "")
 
+
 def test_break_down_screenplay():
     processor = StoryProcessor(director=MockDirectorV2(), storage=MockStorageV2())
     screenplay = processor.break_down_screenplay("測試故事")
     assert len(screenplay.scenes) == 1
     assert screenplay.scenes[0].title == "開場"
+
 
 def test_generate_scene_audio():
     processor = StoryProcessor(director=MockDirectorV2(), storage=MockStorageV2())
@@ -226,25 +250,22 @@ uv run pytest tests/test_use_cases.py -v -k "screenplay or scene_audio"
 from typing import Protocol
 from core.entities import Script, Screenplay, Scene
 
+
 class IDirector(Protocol):
-    def break_down_script(self, story_text: str) -> Script:
-        ...
+    def break_down_script(self, story_text: str) -> Script: ...
 
-    def break_down_screenplay(self, story_text: str) -> Screenplay:
-        ...
+    def break_down_screenplay(self, story_text: str) -> Screenplay: ...
 
-    def generate_audio(self, script: Script, output_path: str) -> None:
-        ...
+    def generate_audio(self, script: Script, output_path: str) -> None: ...
 
-    def generate_scene_audio(self, scene: Scene, voice_map: dict, output_path: str) -> str:
-        ...
+    def generate_scene_audio(self, scene: Scene, voice_map: dict, output_path: str) -> str: ...
+
 
 class IStorage(Protocol):
-    def save_api_key(self, key: str) -> None:
-        ...
+    def save_api_key(self, key: str) -> None: ...
 
-    def get_api_key(self) -> str:
-        ...
+    def get_api_key(self) -> str: ...
+
 
 class StoryProcessor:
     def __init__(self, director: IDirector, storage: IStorage):
@@ -309,10 +330,12 @@ import tempfile
 import pytest
 from infrastructure.voice_map_storage import VoiceMapStorage
 
+
 def test_load_returns_empty_when_no_file():
     with tempfile.TemporaryDirectory() as tmpdir:
         storage = VoiceMapStorage(story_folder=tmpdir)
         assert storage.load() == {}
+
 
 def test_save_and_load():
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -321,6 +344,7 @@ def test_save_and_load():
         storage.save(vm)
         loaded = storage.load()
         assert loaded == vm
+
 
 def test_save_creates_file():
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -344,6 +368,7 @@ uv run pytest tests/test_voice_map_storage.py -v
 
 import os
 import json
+
 
 class VoiceMapStorage:
     def __init__(self, story_folder: str):
@@ -409,23 +434,41 @@ import pytest
 from unittest.mock import MagicMock, patch
 from infrastructure.gemini_director import GeminiDirector
 
-FAKE_SCREENPLAY_JSON = json.dumps([
-    {
-        "scene_id": 1,
-        "title": "開場",
-        "lines": [
-            {"role": "旁白", "emotion": "平靜", "text": "從前從前...", "voice_direction_note": "[calm, slow]"},
-            {"role": "小明", "emotion": "開心", "text": "你好！", "voice_direction_note": "[cheerful]"}
-        ]
-    },
-    {
-        "scene_id": 2,
-        "title": "衝突",
-        "lines": [
-            {"role": "旁白", "emotion": "緊張", "text": "突然...", "voice_direction_note": "[tense]"}
-        ]
-    }
-])
+FAKE_SCREENPLAY_JSON = json.dumps(
+    [
+        {
+            "scene_id": 1,
+            "title": "開場",
+            "lines": [
+                {
+                    "role": "旁白",
+                    "emotion": "平靜",
+                    "text": "從前從前...",
+                    "voice_direction_note": "[calm, slow]",
+                },
+                {
+                    "role": "小明",
+                    "emotion": "開心",
+                    "text": "你好！",
+                    "voice_direction_note": "[cheerful]",
+                },
+            ],
+        },
+        {
+            "scene_id": 2,
+            "title": "衝突",
+            "lines": [
+                {
+                    "role": "旁白",
+                    "emotion": "緊張",
+                    "text": "突然...",
+                    "voice_direction_note": "[tense]",
+                }
+            ],
+        },
+    ]
+)
+
 
 def test_break_down_screenplay_parses_json():
     director = GeminiDirector(api_key="fake-key")
@@ -440,6 +483,7 @@ def test_break_down_screenplay_parses_json():
     assert screenplay.scenes[1].title == "衝突"
     assert screenplay.scenes[0].lines[1].voice_direction_note == "[cheerful]"
 
+
 def test_break_down_screenplay_strips_markdown_fences():
     director = GeminiDirector(api_key="fake-key")
     fenced = f"```json\n{FAKE_SCREENPLAY_JSON}\n```"
@@ -449,12 +493,14 @@ def test_break_down_screenplay_strips_markdown_fences():
 
     assert len(screenplay.scenes) == 2
 
+
 def test_break_down_screenplay_raises_on_bad_json():
     director = GeminiDirector(api_key="fake-key")
 
     with patch.object(director, "_call_director_model", return_value="not json at all"):
         with pytest.raises(ValueError, match="AI 導演回傳的格式有誤"):
             director.break_down_screenplay("故事")
+
 
 def test_requires_api_key():
     director = GeminiDirector(api_key="")
@@ -559,11 +605,13 @@ class GeminiDirector(IDirector):
             scenes = []
             for item in data:
                 lines = [ScriptLine(**ln) for ln in item["lines"]]
-                scenes.append(Scene(
-                    scene_id=item["scene_id"],
-                    title=item["title"],
-                    lines=lines,
-                ))
+                scenes.append(
+                    Scene(
+                        scene_id=item["scene_id"],
+                        title=item["title"],
+                        lines=lines,
+                    )
+                )
             return Screenplay(scenes=scenes)
         except Exception as e:
             raise ValueError(f"AI 導演回傳的格式有誤: {e}")
@@ -645,18 +693,22 @@ import pytest
 from unittest.mock import patch
 from infrastructure.story_folder_storage import StoryFolderStorage
 
+
 def test_folder_path_is_in_documents():
     storage = StoryFolderStorage("小王子")
     assert storage.folder_path.endswith(os.path.join("StoryForge", "小王子"))
+
 
 def test_scene_audio_path_format():
     storage = StoryFolderStorage("小王子")
     path = storage.scene_audio_path(3)
     assert path.endswith("scene_03.mp3")
 
+
 def test_final_audio_path():
     storage = StoryFolderStorage("小王子")
     assert storage.final_audio_path().endswith("final_output.mp3")
+
 
 def test_ensure_folder_creates_directory():
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -683,6 +735,7 @@ uv run pytest tests/test_story_folder_storage.py -v
 import os
 
 BASE_DIR = os.path.join(os.path.expanduser("~"), "Documents", "StoryForge")
+
 
 class StoryFolderStorage:
     def __init__(self, story_name: str):
@@ -744,6 +797,7 @@ import pytest
 from unittest.mock import patch, MagicMock
 from infrastructure.audio_mixer import AudioMixer
 
+
 def test_mix_concatenates_files(tmp_path):
     """測試 mix() 呼叫 pydub 進行拼接並輸出到正確路徑"""
     scene_paths = [str(tmp_path / "scene_01.mp3"), str(tmp_path / "scene_02.mp3")]
@@ -761,6 +815,7 @@ def test_mix_concatenates_files(tmp_path):
 
     assert result == output_path
     mock_segment.export.assert_called_once_with(output_path, format="mp3")
+
 
 def test_mix_raises_if_no_scenes(tmp_path):
     with pytest.raises(ValueError, match="至少需要一個場景"):
@@ -782,6 +837,7 @@ uv run pytest tests/test_audio_mixer.py -v
 
 from typing import List
 from pydub import AudioSegment
+
 
 class AudioMixer:
     @staticmethod
@@ -885,7 +941,9 @@ class StoryForgeApi:
             # AI 建議初始聲音對應（取所有角色，指定預設聲音）
             all_roles = list({line.role for scene in screenplay.scenes for line in scene.lines})
             default_voices = ["Kore", "Charon", "Fenrir", "Aoede", "Puck"]
-            voice_map = {role: default_voices[i % len(default_voices)] for i, role in enumerate(all_roles)}
+            voice_map = {
+                role: default_voices[i % len(default_voices)] for i, role in enumerate(all_roles)
+            }
             if "旁白" in voice_map:
                 voice_map["旁白"] = "Kore"  # 旁白固定用 Kore
 
@@ -958,11 +1016,11 @@ class StoryForgeApi:
             return {"error": str(e)}
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     api = StoryForgeApi()
-    html_path = os.path.join(os.path.dirname(__file__), 'ui', 'index.html')
+    html_path = os.path.join(os.path.dirname(__file__), "ui", "index.html")
     window = webview.create_window(
-        'StoryForge',
+        "StoryForge",
         url=html_path,
         js_api=api,
         width=1000,

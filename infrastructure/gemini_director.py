@@ -1,8 +1,10 @@
-import json
 import io
+import json
+
 from google import genai
 from google.genai import types
-from core.entities import Script, ScriptLine, Scene, Screenplay
+
+from core.entities import Scene, Screenplay, Script, ScriptLine
 from core.use_cases import IDirector
 
 
@@ -21,6 +23,7 @@ class GeminiDirector(IDirector):
 
     def _extract_retry_delay(self, err: Exception, default: float = 10.0) -> float:
         import re
+
         details = getattr(err, "details", None)
         if isinstance(details, dict):
             err_details = details.get("error", {}).get("details", []) or details.get("details", [])
@@ -34,7 +37,7 @@ class GeminiDirector(IDirector):
                             pass
 
         err_str = str(err)
-        m = re.search(r'retry in ([0-9.]+)s', err_str)
+        m = re.search(r"retry in ([0-9.]+)s", err_str)
         if m:
             try:
                 return float(m.group(1))
@@ -60,8 +63,11 @@ class GeminiDirector(IDirector):
         err_str = str(err)
         return "429" in err_str or "RESOURCE_EXHAUSTED" in err_str
 
-    def _generate_content_with_retry(self, *args, max_retries: int = 3, max_delay: float = 60.0, **kwargs):
+    def _generate_content_with_retry(
+        self, *args, max_retries: int = 3, max_delay: float = 60.0, **kwargs
+    ):
         import time
+
         self._require_key()
         last_err = None
         for attempt in range(max_retries + 1):
@@ -78,7 +84,9 @@ class GeminiDirector(IDirector):
                             f"AI 今日額度已達上限（需等待一段時間或明天重設，或更換通行證）：{e}"
                         ) from e
                     sleep_sec = delay + 1.0
-                    print(f"DEBUG: 遇到 429 額度限制，等待 {sleep_sec:.1f} 秒後自動重試（第 {attempt + 1}/{max_retries} 次）...")
+                    print(
+                        f"DEBUG: 遇到 429 額度限制，等待 {sleep_sec:.1f} 秒後自動重試（第 {attempt + 1}/{max_retries} 次）..."
+                    )
                     time.sleep(sleep_sec)
                 else:
                     break
@@ -91,10 +99,8 @@ class GeminiDirector(IDirector):
             model=self.DIRECTOR_MODEL,
             contents=prompt,
             config=types.GenerateContentConfig(
-                thinking_config=types.ThinkingConfig(
-                    thinking_level=self.thinking_level
-                )
-            )
+                thinking_config=types.ThinkingConfig(thinking_level=self.thinking_level)
+            ),
         )
         return response.text
 
@@ -150,11 +156,13 @@ class GeminiDirector(IDirector):
             scenes = []
             for item in data:
                 lines = [ScriptLine(**ln) for ln in item["lines"]]
-                scenes.append(Scene(
-                    scene_id=item["scene_id"],
-                    title=item["title"],
-                    lines=lines,
-                ))
+                scenes.append(
+                    Scene(
+                        scene_id=item["scene_id"],
+                        title=item["title"],
+                        lines=lines,
+                    )
+                )
             return Screenplay(scenes=scenes)
         except Exception as e:
             raise ValueError(f"AI 導演回傳的格式有誤: {e}")
@@ -181,7 +189,7 @@ class GeminiDirector(IDirector):
 
     def _build_tts_prompt(self, scene: Scene, line: ScriptLine) -> str:
         """根據 Google 官方 TTS 提示指南，組裝結構化 prompt。
-        
+
         結構：聲音設定檔 → 場景 → 導演附註 → 轉錄稿
         這樣做可以讓 AI 清楚分辨「這是要唸的台詞」而非「有害的對話」，
         大幅降低被安全分類器誤殺的機率。
@@ -193,7 +201,11 @@ class GeminiDirector(IDirector):
             notes_parts.append(line.voice_direction_note.strip("[]"))
 
         director_notes = ", ".join(notes_parts)
-        style_line = f"Style: {director_notes}" if director_notes else "Style: Natural, expressive reading for an audiobook."
+        style_line = (
+            f"Style: {director_notes}"
+            if director_notes
+            else "Style: Natural, expressive reading for an audiobook."
+        )
 
         return f"""# AUDIO PROFILE: {line.role}
 ## "{scene.title}"
@@ -210,7 +222,13 @@ class GeminiDirector(IDirector):
 
     def _decode_audio_data(self, audio_data: bytes, mime_type: str):
         from pydub import AudioSegment
-        if not mime_type or "L16" in mime_type or "pcm" in mime_type.lower() or "raw" in mime_type.lower():
+
+        if (
+            not mime_type
+            or "L16" in mime_type
+            or "pcm" in mime_type.lower()
+            or "raw" in mime_type.lower()
+        ):
             rate = 24000
             for part_str in mime_type.split(";"):
                 part_str = part_str.strip()
@@ -221,7 +239,7 @@ class GeminiDirector(IDirector):
                         pass
             return AudioSegment(
                 data=audio_data,
-                sample_width=2,   # 16-bit
+                sample_width=2,  # 16-bit
                 frame_rate=rate,
                 channels=1,
             )
@@ -240,12 +258,12 @@ class GeminiDirector(IDirector):
     def _infer_character_description(self, role: str, group: list[ScriptLine]) -> str:
         """根據角色名稱與台詞提示，推導角色的聲音性格標籤。"""
         notes = []
-        for l in group:
-            if l.role == role:
-                if l.emotion:
-                    notes.append(l.emotion)
-                if l.voice_direction_note:
-                    notes.append(l.voice_direction_note.strip("[]"))
+        for line in group:
+            if line.role == role:
+                if line.emotion:
+                    notes.append(line.emotion)
+                if line.voice_direction_note:
+                    notes.append(line.voice_direction_note.strip("[]"))
         notes_summary = ", ".join(notes[:3]) if notes else "expressive audiobook voice"
 
         if any(k in role for k in ["爸爸", "父親", "叔叔", "伯伯"]):
@@ -272,7 +290,7 @@ class GeminiDirector(IDirector):
         max_chars: int = 300,
     ) -> list[list[ScriptLine]]:
         """依台詞順序將場景台詞切分為朗讀對話組。
-        
+
         原則：
         1. 「旁白」為情境敘事，不與角色混合成雙人對話合奏，獨立成組（連續旁白可合併）。
         2. 角色對話依先後順序分組，每組最多 2 位不同角色，上限 max_lines 句或 max_chars 字。
@@ -287,10 +305,10 @@ class GeminiDirector(IDirector):
         current_is_narration: bool = False
 
         for line in lines:
-            is_narration = (line.role == "旁白")
+            is_narration = line.role == "旁白"
 
             if current_group:
-                type_changed = (is_narration != current_is_narration)
+                type_changed = is_narration != current_is_narration
                 would_be_roles = current_roles | {line.role}
                 would_be_chars = current_chars + len(line.text)
 
@@ -383,7 +401,13 @@ class GeminiDirector(IDirector):
         if not response.candidates:
             reason = "未知原因"
             if response.prompt_feedback and hasattr(response.prompt_feedback, "block_reason"):
-                reason = str(getattr(response.prompt_feedback.block_reason, "name", response.prompt_feedback.block_reason))
+                reason = str(
+                    getattr(
+                        response.prompt_feedback.block_reason,
+                        "name",
+                        response.prompt_feedback.block_reason,
+                    )
+                )
             raise ValueError(f"台詞「{line.text}」遭到 AI 安全審查阻擋 (原因: {reason})")
 
         part = response.candidates[0].content.parts[0].inline_data
@@ -396,7 +420,7 @@ class GeminiDirector(IDirector):
         voice_map: dict,
     ):
         """雙角色合奏錄音呼叫。"""
-        roles = list(dict.fromkeys(l.role for l in group))
+        roles = list(dict.fromkeys(line.role for line in group))
         tts_prompt = self._build_multi_speaker_prompt(scene, group, roles)
         v1 = voice_map.get(roles[0], "Kore")
         v2 = voice_map.get(roles[1], "Puck")
@@ -445,7 +469,13 @@ class GeminiDirector(IDirector):
         if not response.candidates:
             reason = "未知原因"
             if response.prompt_feedback and hasattr(response.prompt_feedback, "block_reason"):
-                reason = str(getattr(response.prompt_feedback.block_reason, "name", response.prompt_feedback.block_reason))
+                reason = str(
+                    getattr(
+                        response.prompt_feedback.block_reason,
+                        "name",
+                        response.prompt_feedback.block_reason,
+                    )
+                )
             raise ValueError(f"合奏對話遭到 AI 安全審查阻擋 (原因: {reason})")
 
         part = response.candidates[0].content.parts[0].inline_data
@@ -460,13 +490,15 @@ class GeminiDirector(IDirector):
         groups = self._group_lines_into_dialogue_groups(scene.lines)
 
         for group in groups:
-            group_roles = list(dict.fromkeys(l.role for l in group))
+            group_roles = list(dict.fromkeys(line.role for line in group))
             group_audio = None
 
             # 若組內恰好為 2 位角色，優先嘗試雙角色合奏朗讀
             if len(group_roles) == 2:
                 try:
-                    print(f"DEBUG: 嘗試雙角色合奏朗讀 ({group_roles[0]} & {group_roles[1]}, 共 {len(group)} 句)...")
+                    print(
+                        f"DEBUG: 嘗試雙角色合奏朗讀 ({group_roles[0]} & {group_roles[1]}, 共 {len(group)} 句)..."
+                    )
                     group_audio = self._generate_multi_speaker_group_audio(scene, group, voice_map)
                 except Exception as e:
                     print(f"DEBUG: 雙角色合奏失敗 ({e})，自動降級為單人逐行錄音備案...")
@@ -488,4 +520,3 @@ class GeminiDirector(IDirector):
 
         combined.export(output_path, format="mp3")
         return output_path
-

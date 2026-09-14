@@ -1,7 +1,7 @@
 import os
 import tempfile
-import pytest
 from unittest.mock import patch
+
 from infrastructure.story_folder_storage import StoryFolderStorage
 
 

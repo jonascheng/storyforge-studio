@@ -1,13 +1,14 @@
 import os
-import webview
-from core.use_cases import StoryProcessor
-from core.entities import ScriptLine, Scene, Screenplay
-from infrastructure.gemini_director import GeminiDirector
-from infrastructure.file_storage import LocalFileStorage
-from infrastructure.story_folder_storage import StoryFolderStorage, BASE_DIR
-from infrastructure.voice_map_storage import VoiceMapStorage
-from infrastructure.audio_mixer import AudioMixer
 
+import webview
+
+from core.entities import Scene, ScriptLine
+from core.use_cases import StoryProcessor
+from infrastructure.audio_mixer import AudioMixer
+from infrastructure.file_storage import LocalFileStorage
+from infrastructure.gemini_director import GeminiDirector
+from infrastructure.story_folder_storage import BASE_DIR, StoryFolderStorage
+from infrastructure.voice_map_storage import VoiceMapStorage
 
 _DEFAULT_VOICES = ["Kore", "Charon", "Fenrir", "Aoede", "Puck"]
 
@@ -44,7 +45,7 @@ class StoryForgeApi:
     def get_settings(self):
         return {
             "key": self.processor.get_key(),
-            "thinking_level": self.processor.get_thinking_level()
+            "thinking_level": self.processor.get_thinking_level(),
         }
 
     # ── 劇本拆解 ─────────────────────────────────────────────────
@@ -94,7 +95,9 @@ class StoryForgeApi:
             if not window:
                 return {"error": "無法開啟檔案選取視窗"}
             initial_dir = BASE_DIR if os.path.exists(BASE_DIR) else os.path.expanduser("~")
-            folder_dialog_type = getattr(webview.FileDialog, "FOLDER", getattr(webview, "FOLDER_DIALOG", 20))
+            folder_dialog_type = getattr(
+                webview.FileDialog, "FOLDER", getattr(webview, "FOLDER_DIALOG", 20)
+            )
             res = window.create_file_dialog(folder_dialog_type, directory=initial_dir)
             if not res:
                 return {"cancelled": True}
@@ -113,10 +116,10 @@ class StoryForgeApi:
             if not os.path.exists(folder.screenplay_path()):
                 return {"error": "找不到舊劇本"}
             scenes_data = folder.load_screenplay()
-            
+
             vm_storage = VoiceMapStorage(folder.folder_path)
             voice_map = vm_storage.load()
-            
+
             audio_ready_ids = []
             for scene in scenes_data:
                 sid = scene.get("scene_id")
@@ -211,15 +214,15 @@ class StoryForgeApi:
 def main():
     try:
         import static_ffmpeg
+
         static_ffmpeg.add_paths(weak=True)
     except Exception:
         pass
 
-
     api = StoryForgeApi()
-    html_path = os.path.join(os.path.dirname(__file__), 'ui', 'index.html')
-    window = webview.create_window(
-        'StoryForge',
+    html_path = os.path.join(os.path.dirname(__file__), "ui", "index.html")
+    webview.create_window(
+        "StoryForge",
         url=html_path,
         js_api=api,
         width=1000,
@@ -228,6 +231,5 @@ def main():
     webview.start()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
-
