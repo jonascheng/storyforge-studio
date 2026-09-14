@@ -1,3 +1,10 @@
 storyforge_config.json
 
 *.pyc
+__pycache__/
+.pytest_cache/
+dist/
+build/
+*.egg-info/
+.venv/
+.DS_Store

@@ -73,3 +73,8 @@ _Avoid_: 多人語音合成、批次 TTS
 在合奏朗讀時，由相鄰台詞且角色不超過兩位所組合而成的小段落，為單次交由 AI 導演演繹的單位（若只有一人自白則為單人朗讀組）。
 _Avoid_: batch, chunk, 對話批次
 
+**故事設定檔 (StoryForge Config)**:
+記錄 API 通行證與思考深度設定的秘密筆記本，自動儲存於個人的 `~/Documents/StoryForge/storyforge_config.json`，不管在電腦哪個角落開啟都能記住。
+_Avoid_: 設定檔、環境變數、.env
+
+

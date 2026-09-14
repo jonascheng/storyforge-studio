@@ -21,3 +21,10 @@ def test_save_audio(temp_storage):
     assert os.path.exists(output_path)
     with open(output_path, "rb") as f:
         assert f.read() == dummy_audio_data
+
+def test_default_config_path_points_to_storyforge_documents():
+    storage = LocalFileStorage()
+    expected_dir = os.path.join(os.path.expanduser("~"), "Documents", "StoryForge")
+    assert storage.base_path == expected_dir
+    assert storage.config_path == os.path.join(expected_dir, "storyforge_config.json")
+

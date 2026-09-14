@@ -208,7 +208,14 @@ class StoryForgeApi:
             return {"error": str(e)}
 
 
-if __name__ == '__main__':
+def main():
+    try:
+        import static_ffmpeg
+        static_ffmpeg.add_paths(weak=True)
+    except Exception:
+        pass
+
+
     api = StoryForgeApi()
     html_path = os.path.join(os.path.dirname(__file__), 'ui', 'index.html')
     window = webview.create_window(
@@ -219,3 +226,8 @@ if __name__ == '__main__':
         height=700,
     )
     webview.start()
+
+
+if __name__ == '__main__':
+    main()
+
