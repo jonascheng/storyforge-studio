@@ -20,7 +20,7 @@ StoryForge 旨在讓非工程師使用者（不論使用 Windows 或 macOS）都
 2. **雙指令捷徑（Entrypoint Aliases）**：
    - 同時註冊 `storyforge` 與 `storyforge-studio` 兩個執行指令。
    - 使用者可直接執行：
-     `uvx --from git+https://github.com/jonascheng/storyforge storyforge`
+     `uvx --from git+https://github.com/jonascheng/storyforge-studio storyforge`
      或（發布後）：
      `uvx storyforge-studio`
 3. **內建 `static-ffmpeg` 自動補充音訊小剪刀工具**：

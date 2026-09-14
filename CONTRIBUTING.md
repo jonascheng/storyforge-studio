@@ -12,9 +12,10 @@
 
 1. **複製專案**：
    ```bash
-   git clone https://github.com/jonascheng/storyforge.git
-   cd storyforge
+   git clone https://github.com/jonascheng/storyforge-studio.git
+   cd storyforge-studio
    ```
+
 
 2. **同步依賴環境**：
    ```bash

@@ -46,8 +46,9 @@ StoryForge 使用 Google 最聰明的 Gemini 作為 AI 導演。我們需要向 
 在剛剛打開的黑色終端機小視窗中，貼上以下這行指令並按 `Enter`：
 
 ```bash
-uvx --from git+https://github.com/jonascheng/storyforge storyforge
+uvx --from git+https://github.com/jonascheng/storyforge-studio storyforge
 ```
+
 
 > 💡 **小秘訣**：
 > 電腦會自動準備好所有環境與音訊小工具，只要幾秒鐘，美麗的 **StoryForge 操作視窗** 就會自動彈出來囉！
