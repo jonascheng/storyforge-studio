@@ -179,14 +179,20 @@ class GeminiDirector(IDirector):
         except Exception:
             return []
 
-    def _build_tts_prompt(self, scene: Scene, line) -> str:
+    def _build_tts_prompt(self, scene: Scene, line: ScriptLine) -> str:
         """根據 Google 官方 TTS 提示指南，組裝結構化 prompt。
         
         結構：聲音設定檔 → 場景 → 導演附註 → 轉錄稿
         這樣做可以讓 AI 清楚分辨「這是要唸的台詞」而非「有害的對話」，
         大幅降低被安全分類器誤殺的機率。
         """
-        director_notes = line.voice_direction_note.strip() if line.voice_direction_note else ""
+        notes_parts = []
+        if line.emotion:
+            notes_parts.append(f"Emotion: {line.emotion}")
+        if line.voice_direction_note:
+            notes_parts.append(line.voice_direction_note.strip("[]"))
+
+        director_notes = ", ".join(notes_parts)
         style_line = f"Style: {director_notes}" if director_notes else "Style: Natural, expressive reading for an audiobook."
 
         return f"""# AUDIO PROFILE: {line.role}
@@ -233,8 +239,14 @@ class GeminiDirector(IDirector):
 
     def _infer_character_description(self, role: str, group: list[ScriptLine]) -> str:
         """根據角色名稱與台詞提示，推導角色的聲音性格標籤。"""
-        notes = [l.voice_direction_note.strip("[]") for l in group if l.role == role and l.voice_direction_note]
-        notes_summary = ", ".join(notes[:2]) if notes else "expressive audiobook voice"
+        notes = []
+        for l in group:
+            if l.role == role:
+                if l.emotion:
+                    notes.append(l.emotion)
+                if l.voice_direction_note:
+                    notes.append(l.voice_direction_note.strip("[]"))
+        notes_summary = ", ".join(notes[:3]) if notes else "expressive audiobook voice"
 
         if any(k in role for k in ["爸爸", "父親", "叔叔", "伯伯"]):
             return f"Adult male father, warm and deep voice ({notes_summary})"
@@ -324,7 +336,12 @@ class GeminiDirector(IDirector):
 
         transcript_lines = []
         for line in group:
-            note_str = f"({line.voice_direction_note.strip('[]')}) " if line.voice_direction_note else ""
+            notes_parts = []
+            if line.emotion:
+                notes_parts.append(line.emotion)
+            if line.voice_direction_note:
+                notes_parts.append(line.voice_direction_note.strip("[]"))
+            note_str = f"({', '.join(notes_parts)}) " if notes_parts else ""
             transcript_lines.append(f"{line.role}: {note_str}{line.text}")
         transcript = "\n".join(transcript_lines)
 

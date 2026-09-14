@@ -318,3 +318,30 @@ def test_generate_scene_audio_falls_back_to_single_speaker_on_failure():
         assert call_count == 3
         mock_export.assert_called_once_with("/tmp/test_scene.mp3", format="mp3")
 
+
+def test_build_tts_prompt_includes_emotion():
+    director = GeminiDirector(api_key="fake-key")
+    scene = Scene(scene_id=1, title="房間裡的對話", lines=[])
+    line = ScriptLine(role="小明", emotion="憤怒", text="你為什麼騙我！", voice_direction_note="[angry, raised voice]")
+    prompt = director._build_tts_prompt(scene, line)
+
+    assert "Emotion: 憤怒" in prompt
+    assert "angry, raised voice" in prompt
+    assert "你為什麼騙我！" in prompt
+
+
+def test_build_multi_speaker_prompt_includes_emotion():
+    director = GeminiDirector(api_key="fake-key")
+    scene = Scene(scene_id=1, title="神秘森林", lines=[])
+    group = [
+        ScriptLine(role="爸爸", emotion="沉穩", text="快看！", voice_direction_note="[excited]"),
+        ScriptLine(role="小美", emotion="害怕", text="那是怪獸嗎？", voice_direction_note="[trembling]"),
+    ]
+    roles = ["爸爸", "小美"]
+    prompt = director._build_multi_speaker_prompt(scene, group, roles)
+
+    assert "沉穩" in prompt
+    assert "害怕" in prompt
+    assert "爸爸: (沉穩, excited) 快看！" in prompt
+    assert "小美: (害怕, trembling) 那是怪獸嗎？" in prompt
+
