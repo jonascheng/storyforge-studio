@@ -340,6 +340,7 @@ class GeminiDirector(IDirector):
         """單行錄音呼叫。"""
         voice_name = voice_map.get(line.role, "Kore")
         tts_prompt = self._build_tts_prompt(scene, line)
+        print(f"\n[DEBUG TTS PROMPT - 單人朗讀 ({line.role} -> {voice_name})]\n{tts_prompt}\n" + "-" * 40)
 
         response = self._generate_content_with_retry(
             model=self.TTS_MODEL,
@@ -374,6 +375,9 @@ class GeminiDirector(IDirector):
         """雙角色合奏錄音呼叫。"""
         roles = list(dict.fromkeys(l.role for l in group))
         tts_prompt = self._build_multi_speaker_prompt(scene, group, roles)
+        v1 = voice_map.get(roles[0], "Kore")
+        v2 = voice_map.get(roles[1], "Puck")
+        print(f"\n[DEBUG TTS PROMPT - 雙角色合奏 ({roles[0]}:{v1} & {roles[1]}:{v2})]\n{tts_prompt}\n" + "-" * 40)
 
         speaker_voice_configs = [
             types.SpeakerVoiceConfig(
