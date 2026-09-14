@@ -206,22 +206,45 @@ def test_group_lines_into_dialogue_groups_character_length_limit():
     assert len(groups[1]) == 1
 
 
+def test_group_lines_into_dialogue_groups_isolates_narration():
+    director = GeminiDirector(api_key="fake-key")
+    lines = [
+        ScriptLine(role="旁白", emotion="", text="森林裡很安靜。", voice_direction_note=""),
+        ScriptLine(role="小明", emotion="", text="快看！", voice_direction_note=""),
+        ScriptLine(role="爸爸", emotion="", text="慢慢走。", voice_direction_note=""),
+        ScriptLine(role="小明", emotion="", text="好！", voice_direction_note=""),
+        ScriptLine(role="旁白", emotion="", text="天色漸漸暗了。", voice_direction_note=""),
+    ]
+    groups = director._group_lines_into_dialogue_groups(lines)
+    assert len(groups) == 3
+    # Group 1: 旁白
+    assert len(groups[0]) == 1
+    assert groups[0][0].role == "旁白"
+    # Group 2: 小明 and 爸爸
+    assert len(groups[1]) == 3
+    assert [l.role for l in groups[1]] == ["小明", "爸爸", "小明"]
+    # Group 3: 旁白
+    assert len(groups[2]) == 1
+    assert groups[2][0].role == "旁白"
+
+
 def test_build_multi_speaker_prompt():
     director = GeminiDirector(api_key="fake-key")
     scene = Scene(scene_id=1, title="神秘森林", lines=[])
     group = [
-        ScriptLine(role="小明", emotion="興奮", text="快看！", voice_direction_note="[excited]"),
+        ScriptLine(role="爸爸", emotion="沉穩", text="快看！", voice_direction_note="[excited]"),
         ScriptLine(role="小美", emotion="害怕", text="那是怪獸嗎？", voice_direction_note="[trembling]"),
     ]
-    speaker_map = {"小明": "Speaker_1", "小美": "Speaker_2"}
-    prompt = director._build_multi_speaker_prompt(scene, group, speaker_map)
+    roles = ["爸爸", "小美"]
+    prompt = director._build_multi_speaker_prompt(scene, group, roles)
 
-    assert "Speaker_1" in prompt
-    assert "Speaker_2" in prompt
+    assert "神秘森林" in prompt
+    assert "Characters:" in prompt
+    assert "爸爸" in prompt
+    assert "小美" in prompt
+    assert "Adult male father" in prompt
     assert "快看！" in prompt
     assert "那是怪獸嗎？" in prompt
-    assert "[excited]" in prompt
-    assert "[trembling]" in prompt
 
 
 def test_generate_scene_audio_calls_multi_speaker_and_exports():

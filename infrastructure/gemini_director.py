@@ -231,13 +231,40 @@ class GeminiDirector(IDirector):
                     channels=1,
                 )
 
+    def _infer_character_description(self, role: str, group: list[ScriptLine]) -> str:
+        """根據角色名稱與台詞提示，推導角色的聲音性格標籤。"""
+        notes = [l.voice_direction_note.strip("[]") for l in group if l.role == role and l.voice_direction_note]
+        notes_summary = ", ".join(notes[:2]) if notes else "expressive audiobook voice"
+
+        if any(k in role for k in ["爸爸", "父親", "叔叔", "伯伯"]):
+            return f"Adult male father, warm and deep voice ({notes_summary})"
+        if any(k in role for k in ["媽媽", "母親", "阿姨", "姑姑"]):
+            return f"Adult female mother, gentle and warm voice ({notes_summary})"
+        if any(k in role for k in ["爺爺", "公公", "阿公"]):
+            return f"Elderly male grandfather, kind and mature voice ({notes_summary})"
+        if any(k in role for k in ["奶奶", "婆婆", "阿嬤", "外婆"]):
+            return f"Elderly female grandmother, loving and warm voice ({notes_summary})"
+        if any(k in role for k in ["怪獸", "精靈", "幽靈", "魔王"]):
+            return f"Playful mythical creature ({notes_summary})"
+
+        combined_notes = " ".join(notes).lower()
+        if any(w in combined_notes for w in ["child", "kid", "boy", "girl"]):
+            return f"Young child, gentle tone ({notes_summary})"
+
+        return f"Role {role} ({notes_summary})"
+
     def _group_lines_into_dialogue_groups(
         self,
         lines: list[ScriptLine],
         max_lines: int = 6,
         max_chars: int = 300,
     ) -> list[list[ScriptLine]]:
-        """依台詞順序將場景台詞切分為朗讀對話組（最多 2 位角色，上限 max_lines 句或 max_chars 字）。"""
+        """依台詞順序將場景台詞切分為朗讀對話組。
+        
+        原則：
+        1. 「旁白」為情境敘事，不與角色混合成雙人對話合奏，獨立成組（連續旁白可合併）。
+        2. 角色對話依先後順序分組，每組最多 2 位不同角色，上限 max_lines 句或 max_chars 字。
+        """
         if not lines:
             return []
 
@@ -245,24 +272,36 @@ class GeminiDirector(IDirector):
         current_group: list[ScriptLine] = []
         current_roles: set[str] = set()
         current_chars: int = 0
+        current_is_narration: bool = False
 
         for line in lines:
-            would_be_roles = current_roles | {line.role}
-            would_be_chars = current_chars + len(line.text)
+            is_narration = (line.role == "旁白")
 
-            if current_group and (
-                len(would_be_roles) > 2
-                or len(current_group) >= max_lines
-                or would_be_chars > max_chars
-            ):
-                groups.append(current_group)
-                current_group = [line]
-                current_roles = {line.role}
-                current_chars = len(line.text)
+            if current_group:
+                type_changed = (is_narration != current_is_narration)
+                would_be_roles = current_roles | {line.role}
+                would_be_chars = current_chars + len(line.text)
+
+                if (
+                    type_changed
+                    or (not is_narration and len(would_be_roles) > 2)
+                    or len(current_group) >= max_lines
+                    or would_be_chars > max_chars
+                ):
+                    groups.append(current_group)
+                    current_group = [line]
+                    current_roles = {line.role}
+                    current_chars = len(line.text)
+                    current_is_narration = is_narration
+                else:
+                    current_group.append(line)
+                    current_roles.add(line.role)
+                    current_chars += len(line.text)
             else:
                 current_group.append(line)
                 current_roles.add(line.role)
                 current_chars += len(line.text)
+                current_is_narration = is_narration
 
         if current_group:
             groups.append(current_group)
@@ -273,29 +312,29 @@ class GeminiDirector(IDirector):
         self,
         scene: Scene,
         group: list[ScriptLine],
-        speaker_map: dict[str, str],
+        roles: list[str],
     ) -> str:
-        """建構多角色合奏朗讀的提示詞。"""
-        roles_desc = "\n".join(
-            f"- {speaker_map[role]} 代表角色「{role}」"
-            for role in speaker_map
-        )
+        """建構多角色合奏朗讀的提示詞，包含場景脈絡與角色特質引導。"""
+        char_descriptions = []
+        for role in roles:
+            desc = self._infer_character_description(role, group)
+            char_descriptions.append(f"- {role}: {desc}")
+
+        chars_header = "\n".join(char_descriptions)
+
         transcript_lines = []
         for line in group:
-            spk = speaker_map[line.role]
-            note_str = f" {line.voice_direction_note}" if line.voice_direction_note else ""
-            transcript_lines.append(f"{spk}:{note_str} {line.text}")
+            note_str = f"({line.voice_direction_note.strip('[]')}) " if line.voice_direction_note else ""
+            transcript_lines.append(f"{line.role}: {note_str}{line.text}")
         transcript = "\n".join(transcript_lines)
 
-        return f"""## THE SCENE: {scene.title}
-這是有聲書的場景朗讀。請依序生動地演繹以下角色的對話。
-
-### CHARACTERS
-{roles_desc}
-
-#### TRANSCRIPT
-{transcript}
-"""
+        return (
+            f"# AUDIO SCENE: {scene.title}\n"
+            f"Characters:\n"
+            f"{chars_header}\n\n"
+            f"TTS the following conversation between {roles[0]} and {roles[1]}:\n"
+            f"{transcript}"
+        )
 
     def _generate_single_line_audio(self, scene: Scene, line: ScriptLine, voice_map: dict):
         """單行錄音呼叫。"""
@@ -334,13 +373,11 @@ class GeminiDirector(IDirector):
     ):
         """雙角色合奏錄音呼叫。"""
         roles = list(dict.fromkeys(l.role for l in group))
-        speaker_map = {roles[0]: "Speaker_1", roles[1]: "Speaker_2"}
-
-        tts_prompt = self._build_multi_speaker_prompt(scene, group, speaker_map)
+        tts_prompt = self._build_multi_speaker_prompt(scene, group, roles)
 
         speaker_voice_configs = [
             types.SpeakerVoiceConfig(
-                speaker="Speaker_1",
+                speaker=roles[0],
                 voice_config=types.VoiceConfig(
                     prebuilt_voice_config=types.PrebuiltVoiceConfig(
                         voice_name=voice_map.get(roles[0], "Kore"),
@@ -348,7 +385,7 @@ class GeminiDirector(IDirector):
                 ),
             ),
             types.SpeakerVoiceConfig(
-                speaker="Speaker_2",
+                speaker=roles[1],
                 voice_config=types.VoiceConfig(
                     prebuilt_voice_config=types.PrebuiltVoiceConfig(
                         voice_name=voice_map.get(roles[1], "Puck"),
