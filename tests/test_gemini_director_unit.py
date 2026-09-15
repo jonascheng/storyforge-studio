@@ -276,8 +276,24 @@ def test_group_lines_into_dialogue_groups_character_length_limit():
     assert len(groups[1]) == 1
 
 
-def test_group_lines_into_dialogue_groups_isolates_narration():
+def test_group_lines_into_dialogue_groups_pairs_narration_with_character():
     director = GeminiDirector(api_key="fake-key")
+    # 旁白與小明交替，不超過 2 位角色，應貪婪打包為同一組
+    lines = [
+        ScriptLine(role="旁白", emotion="", text="森林裡很安靜。", voice_direction_note=""),
+        ScriptLine(role="小明", emotion="", text="快看！", voice_direction_note=""),
+        ScriptLine(role="旁白", emotion="", text="小明指著前方。", voice_direction_note=""),
+        ScriptLine(role="小明", emotion="", text="那是松鼠嗎？", voice_direction_note=""),
+    ]
+    groups = director._group_lines_into_dialogue_groups(lines)
+    assert len(groups) == 1
+    assert len(groups[0]) == 4
+    assert [line.role for line in groups[0]] == ["旁白", "小明", "旁白", "小明"]
+
+
+def test_group_lines_into_dialogue_groups_splits_on_third_role_including_narration():
+    director = GeminiDirector(api_key="fake-key")
+    # 旁白 + 小明 -> 遇到爸爸變 3 角色切出；爸爸 + 小明 -> 遇到旁白變 3 角色切出
     lines = [
         ScriptLine(role="旁白", emotion="", text="森林裡很安靜。", voice_direction_note=""),
         ScriptLine(role="小明", emotion="", text="快看！", voice_direction_note=""),
@@ -287,15 +303,34 @@ def test_group_lines_into_dialogue_groups_isolates_narration():
     ]
     groups = director._group_lines_into_dialogue_groups(lines)
     assert len(groups) == 3
-    # Group 1: 旁白
-    assert len(groups[0]) == 1
-    assert groups[0][0].role == "旁白"
-    # Group 2: 小明 and 爸爸
-    assert len(groups[1]) == 3
-    assert [line.role for line in groups[1]] == ["小明", "爸爸", "小明"]
+    # Group 1: 旁白, 小明
+    assert [line.role for line in groups[0]] == ["旁白", "小明"]
+    # Group 2: 爸爸, 小明
+    assert [line.role for line in groups[1]] == ["爸爸", "小明"]
     # Group 3: 旁白
-    assert len(groups[2]) == 1
-    assert groups[2][0].role == "旁白"
+    assert [line.role for line in groups[2]] == ["旁白"]
+
+
+def test_infer_character_description_for_narrator():
+    director = GeminiDirector(api_key="fake-key")
+    group = [ScriptLine(role="旁白", emotion="", text="從前從前...", voice_direction_note="")]
+    desc = director._infer_character_description("旁白", group)
+    assert "narrator" in desc.lower()
+
+
+def test_build_multi_speaker_prompt_with_narrator():
+    director = GeminiDirector(api_key="fake-key")
+    scene = Scene(scene_id=1, title="森林探險", lines=[])
+    group = [
+        ScriptLine(role="旁白", emotion="", text="遠處傳來聲音。", voice_direction_note=""),
+        ScriptLine(role="小明", emotion="好奇", text="是誰在那裡？", voice_direction_note=""),
+    ]
+    roles = ["旁白", "小明"]
+    prompt = director._build_multi_speaker_prompt(scene, group, roles)
+    assert "旁白" in prompt
+    assert "小明" in prompt
+    # 驗證提示詞明確指定旁白敘事與角色演繹分工，非單純 conversation
+    assert "narration" in prompt.lower()
 
 
 def test_build_multi_speaker_prompt():
@@ -403,6 +438,89 @@ def test_generate_scene_audio_falls_back_to_single_speaker_on_failure():
 
         assert out == "/tmp/test_scene.mp3"
         # 1 multi-speaker attempt + 2 single-speaker fallback calls = 3 calls total
+        assert call_count == 3
+        mock_export.assert_called_once_with("/tmp/test_scene.mp3", format="mp3")
+
+
+def test_generate_scene_audio_batches_consecutive_narration():
+    import base64
+
+    from pydub import AudioSegment
+
+    director = GeminiDirector(api_key="fake-key")
+    scene = Scene(
+        scene_id=1,
+        title="純旁白開場",
+        lines=[
+            ScriptLine(role="旁白", emotion="", text="很久很久以前。"),
+            ScriptLine(role="旁白", emotion="", text="在一個遙遠的王國裡。"),
+            ScriptLine(role="旁白", emotion="", text="住著一位小公主。"),
+        ],
+    )
+    voice_map = {"旁白": "Kore"}
+
+    mock_resp = MagicMock()
+    mock_audio = MagicMock()
+    mock_audio.data = base64.b64encode(b"\x00\x00" * 1000).decode("utf-8")
+    mock_audio.mime_type = "audio/pcm;rate=24000"
+    mock_resp.output_audio = mock_audio
+
+    with (
+        patch.object(
+            director, "_create_interaction_with_retry", return_value=mock_resp
+        ) as mock_gen,
+        patch.object(AudioSegment, "export") as mock_export,
+    ):
+        out = director.generate_scene_audio(scene, voice_map, "/tmp/test_scene.mp3")
+
+        assert out == "/tmp/test_scene.mp3"
+        # 3 行連續旁白應在 1 次單人整組呼叫中完成，而非 3 次
+        assert mock_gen.call_count == 1
+        gen_config = mock_gen.call_args[1]["generation_config"]
+        assert gen_config["speech_config"] == [{"voice": "Kore"}]
+        mock_export.assert_called_once_with("/tmp/test_scene.mp3", format="mp3")
+
+
+def test_generate_scene_audio_single_speaker_group_falls_back_on_failure():
+    import base64
+
+    from pydub import AudioSegment
+
+    director = GeminiDirector(api_key="fake-key")
+    scene = Scene(
+        scene_id=1,
+        title="純旁白場景",
+        lines=[
+            ScriptLine(role="旁白", emotion="", text="第一句。"),
+            ScriptLine(role="旁白", emotion="", text="第二句。"),
+        ],
+    )
+    voice_map = {"旁白": "Kore"}
+
+    mock_resp_success = MagicMock()
+    mock_audio = MagicMock()
+    mock_audio.data = base64.b64encode(b"\x00\x00" * 1000).decode("utf-8")
+    mock_audio.mime_type = "audio/pcm;rate=24000"
+    mock_resp_success.output_audio = mock_audio
+
+    call_count = 0
+
+    def mock_generate(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        # 第一次整組呼叫失敗，觸發後續 2 次逐行備案
+        if call_count == 1:
+            raise ValueError("單人整組朗讀安全審查阻擋")
+        return mock_resp_success
+
+    with (
+        patch.object(director, "_create_interaction_with_retry", side_effect=mock_generate),
+        patch.object(AudioSegment, "export") as mock_export,
+    ):
+        out = director.generate_scene_audio(scene, voice_map, "/tmp/test_scene.mp3")
+
+        assert out == "/tmp/test_scene.mp3"
+        # 1 次整組嘗試失敗 + 2 次逐行降級 = 共 3 次
         assert call_count == 3
         mock_export.assert_called_once_with("/tmp/test_scene.mp3", format="mp3")
 

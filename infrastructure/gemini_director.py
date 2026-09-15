@@ -369,6 +369,9 @@ class GeminiDirector(IDirector):
                     notes.append(line.voice_direction_note.strip("[]"))
         notes_summary = ", ".join(notes[:3]) if notes else "expressive audiobook voice"
 
+        if role in ["旁白", "說書人"]:
+            return f"Calm, steady, and clear third-person audiobook narrator ({notes_summary})"
+
         if any(k in role for k in ["爸爸", "父親", "叔叔", "伯伯"]):
             return f"Adult male father, warm and deep voice ({notes_summary})"
         if any(k in role for k in ["媽媽", "母親", "阿姨", "姑姑"]):
@@ -394,9 +397,9 @@ class GeminiDirector(IDirector):
     ) -> list[list[ScriptLine]]:
         """依台詞順序將場景台詞切分為朗讀對話組。
 
-        原則：
-        1. 「旁白」為情境敘事，不與角色混合成雙人對話合奏，獨立成組（連續旁白可合併）。
-        2. 角色對話依先後順序分組，每組最多 2 位不同角色，上限 max_lines 句或 max_chars 字。
+        原則（ADR 0007）：
+        1. 消除旁白特例，旁白視為普通角色，與其他角色一同排隊。
+        2. 依先後順序貪婪分組，每組最多 2 位不同角色，上限 max_lines 句或 max_chars 字。
         """
         if not lines:
             return []
@@ -405,19 +408,14 @@ class GeminiDirector(IDirector):
         current_group: list[ScriptLine] = []
         current_roles: set[str] = set()
         current_chars: int = 0
-        current_is_narration: bool = False
 
         for line in lines:
-            is_narration = line.role == "旁白"
-
             if current_group:
-                type_changed = is_narration != current_is_narration
                 would_be_roles = current_roles | {line.role}
                 would_be_chars = current_chars + len(line.text)
 
                 if (
-                    type_changed
-                    or (not is_narration and len(would_be_roles) > 2)
+                    len(would_be_roles) > 2
                     or len(current_group) >= max_lines
                     or would_be_chars > max_chars
                 ):
@@ -425,7 +423,6 @@ class GeminiDirector(IDirector):
                     current_group = [line]
                     current_roles = {line.role}
                     current_chars = len(line.text)
-                    current_is_narration = is_narration
                 else:
                     current_group.append(line)
                     current_roles.add(line.role)
@@ -434,7 +431,6 @@ class GeminiDirector(IDirector):
                 current_group.append(line)
                 current_roles.add(line.role)
                 current_chars += len(line.text)
-                current_is_narration = is_narration
 
         if current_group:
             groups.append(current_group)
@@ -466,11 +462,23 @@ class GeminiDirector(IDirector):
             transcript_lines.append(f"{line.role}: {note_str}{line.text}")
         transcript = "\n".join(transcript_lines)
 
+        if "旁白" in roles or "說書人" in roles:
+            narrator_role = "旁白" if "旁白" in roles else "說書人"
+            other_roles = [r for r in roles if r != narrator_role]
+            other_str = other_roles[0] if other_roles else "the characters"
+            instructions = (
+                f"TTS the following audiobook excerpt. "
+                f"{narrator_role} provides calm, clear third-person narration, "
+                f"while {other_str} performs dialogue with emotional expression:\n"
+            )
+        else:
+            instructions = f"TTS the following conversation between {roles[0]} and {roles[1]}:\n"
+
         return (
             f"# AUDIO SCENE: {scene.title}\n"
             f"Characters:\n"
             f"{chars_header}\n\n"
-            f"TTS the following conversation between {roles[0]} and {roles[1]}:\n"
+            f"{instructions}"
             f"{transcript}"
         )
 
@@ -562,8 +570,77 @@ class GeminiDirector(IDirector):
         mime = getattr(audio, "mime_type", None) or "audio/pcm;rate=24000"
         return self._decode_audio_data(audio_bytes, mime)
 
+    def _build_single_speaker_group_prompt(
+        self,
+        scene: Scene,
+        group: list[ScriptLine],
+        role: str,
+    ) -> str:
+        """建構單人整組朗讀的提示詞（純旁白或單人獨白批次）。"""
+        desc = self._infer_character_description(role, group)
+        transcript_lines = []
+        for line in group:
+            notes_parts = []
+            if line.emotion:
+                notes_parts.append(line.emotion)
+            if line.voice_direction_note:
+                notes_parts.append(line.voice_direction_note.strip("[]"))
+            note_str = f"({', '.join(notes_parts)}) " if notes_parts else ""
+            transcript_lines.append(f"{note_str}{line.text}")
+        transcript = "\n".join(transcript_lines)
+
+        return (
+            f"# AUDIO SCENE: {scene.title}\n"
+            f"Character: {role} ({desc})\n\n"
+            f"Please read the following lines aloud with natural intonation and expression:\n"
+            f"{transcript}"
+        )
+
+    def _generate_single_speaker_group_audio(
+        self,
+        scene: Scene,
+        group: list[ScriptLine],
+        voice_map: dict,
+    ):
+        """單角色整組批次錄音呼叫。"""
+        role = group[0].role
+        voice_name = voice_map.get(role, "Kore")
+        tts_prompt = self._build_single_speaker_group_prompt(scene, group, role)
+        print("\n" + "=" * 50)
+        print("[DEBUG TTS - 單人整組朗讀 (Interactions API)]")
+        print(f"  • 角色: {role} (共 {len(group)} 句)")
+        print(f"  • speech_config: [{{'voice': '{voice_name}'}}]")
+        print(f"  • prompt:\n{tts_prompt.strip()}")
+        print("=" * 50 + "\n")
+
+        try:
+            interaction = self._create_interaction_with_retry(
+                model=self.TTS_MODEL,
+                input=tts_prompt,
+                response_format={"type": "audio"},
+                generation_config={"speech_config": [{"voice": voice_name}]},
+                store=False,
+            )
+        except Exception as e:
+            if self._is_rate_limit_error(e) or "額度" in str(e):
+                raise
+            raise ValueError(f"整組台詞遭到 AI 安全審查阻擋 (原因: {e})") from e
+
+        audio = getattr(interaction, "output_audio", None)
+        if not audio or not getattr(audio, "data", None):
+            reason = "未知原因"
+            steps = getattr(interaction, "steps", None) or []
+            for step in steps:
+                if getattr(step, "error", None):
+                    reason = str(step.error)
+            raise ValueError(f"整組台詞遭到 AI 安全審查阻擋 (原因: {reason})")
+
+        audio_bytes = base64.b64decode(audio.data) if isinstance(audio.data, str) else audio.data
+        mime = getattr(audio, "mime_type", None) or "audio/pcm;rate=24000"
+        return self._decode_audio_data(audio_bytes, mime)
+
     def generate_scene_audio(self, scene: Scene, voice_map: dict, output_path: str) -> str:
-        """以朗讀對話組為單位生成語音，支援雙角色合奏與自動降級單人錄音，拼接成場景音檔。
+        """以朗讀對話組為單位生成語音，支援雙角色合奏、單人整組批次與自動降級單人錄音，拼接成場景音檔。
 
         若 scene.bgm_prompt 非空，呼叫 Lyria 生成器樂 BGM，以 -18 dB 恒定墓底混入對白：
         場景開頭 2 秒淡入、結尾 2 秒淡出，對白超過 30 秒則以 1 秒 crossfade 無縭循環。
@@ -588,8 +665,15 @@ class GeminiDirector(IDirector):
                 except Exception as e:
                     print(f"DEBUG: 雙角色合奏失敗 ({e})，自動降級為單人逐行錄音備案...")
                     group_audio = None
+            elif len(group_roles) == 1 and len(group) > 1:
+                try:
+                    print(f"DEBUG: 嘗試單人整組批次朗讀 ({group_roles[0]}, 共 {len(group)} 句)...")
+                    group_audio = self._generate_single_speaker_group_audio(scene, group, voice_map)
+                except Exception as e:
+                    print(f"DEBUG: 單人整組朗讀失敗 ({e})，自動降級為單人逐行錄音備案...")
+                    group_audio = None
 
-            # 若不是 2 位角色，或雙角色合奏失敗，執行單人逐行錄音
+            # 若不是合奏/整組成功，或只有 1 行，或失敗降級，執行單人逐行錄音
             if group_audio is None:
                 group_segment = AudioSegment.empty()
                 for line in group:
