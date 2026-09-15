@@ -324,6 +324,23 @@ document.addEventListener("DOMContentLoaded", () => {
         const body = document.createElement("div");
         body.className = "scene-body";
 
+        // ── 場景氛圍音效欄位 ──────────────────────────────────
+        const sfxRow = document.createElement("div");
+        sfxRow.className = "sfx-row";
+        sfxRow.innerHTML = `<label class="sfx-label">🎵 場景背景音樂 BGM（選填，留空則不生成）</label>`;
+        const sfxTextarea = document.createElement("textarea");
+        sfxTextarea.className = "sfx-prompt-input";
+        sfxTextarea.value = scene.bgm_prompt || "";
+        sfxTextarea.placeholder = "例：Gentle acoustic guitar, warm and calm, no vocals, instrumental only, subtle background music for audiobook";
+        sfxTextarea.rows = 2;
+        sfxTextarea.addEventListener("change", (e) => {
+            currentScenes[idx].bgm_prompt = e.target.value.trim() || null;
+            markSceneStale(scene.scene_id);
+            api("save_screenplay_progress", currentStory, currentScenes);
+        });
+        sfxRow.appendChild(sfxTextarea);
+        body.appendChild(sfxRow);
+
         scene.lines.forEach((line, lineIdx) => {
             const row = document.createElement("div");
             row.className = "script-line";

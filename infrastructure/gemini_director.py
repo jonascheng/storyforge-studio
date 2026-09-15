@@ -132,13 +132,15 @@ class GeminiDirector(IDirector):
 每個場景需要：
 1. 一個 scene_id（從 1 開始）
 2. 一個簡短的中文場景標題（4-10 個字）
-3. 所有台詞行，每行需有：role（角色名或「旁白」）、emotion（情緒）、text（台詞）、voice_direction_note（給 TTS 的英文聲音導演備註，例如 "[calm, slow]" 或 "speak with a trembling voice"）
+3. 一個 bgm_prompt（英文，給 Lyria 的場景背景音樂描述。要求：純器樂、無人聲、音量漸退。根據場景情緒决定風格，例如緊張場景用緩慢弦樂、溫馨場景用輕柔龋琴、除幕場景用史詩氣吸笻小提琴。格式："[genre/mood] instrumental, no vocals, subtle and understated as background music for audiobook")。若場景简短或無需 BGM，請設為 null。
+4. 所有台詞行，每行需有：role（角色名或「旁白」）、emotion（情緒）、text（台詞）、voice_direction_note（給 TTS 的英文聲音導演備註，例如 "[calm, slow]" 或 "speak with a trembling voice"）
 
 請嚴格以 JSON 陣列格式回傳，例如：
 [
   {{
     "scene_id": 1,
     "title": "書房中的爭吵",
+    "bgm_prompt": "Tense, slow orchestral strings, no vocals, subtle and understated as background music for audiobook",
     "lines": [
       {{"role": "旁白", "emotion": "緊張", "text": "門突然被推開", "voice_direction_note": "[tense, urgent]"}},
       {{"role": "小明", "emotion": "憤怒", "text": "你為什麼騙我！", "voice_direction_note": "[angry, raised voice]"}}
@@ -161,6 +163,7 @@ class GeminiDirector(IDirector):
                         scene_id=item["scene_id"],
                         title=item["title"],
                         lines=lines,
+                        bgm_prompt=item.get("bgm_prompt"),
                     )
                 )
             return Screenplay(scenes=scenes)
@@ -186,6 +189,57 @@ class GeminiDirector(IDirector):
             return []
         except Exception:
             return []
+
+    def generate_scene_bgm(self, bgm_prompt: str, output_path: str) -> str:
+        """呼叫 Lyria 3 Clip 生成 30 秒場景背景音樂，存為 MP3，回傳路徑。
+
+        使用 Interactions API（與 TTS 的 generate_content API 不同）。
+        bgm_prompt 應為英文器樂描述，包含 no vocals 與情緒風格指示。
+        """
+        import base64
+        import time
+
+        self._require_key()
+        LYRIA_MODEL = "lyria-3-clip-preview"
+        max_retries = 3
+        last_err = None
+
+        for attempt in range(max_retries + 1):
+            try:
+                interaction = self._client.interactions.create(
+                    model=LYRIA_MODEL,
+                    input=bgm_prompt,
+                )
+                audio = interaction.output_audio
+                if not audio or not audio.data:
+                    raise ValueError("Lyria 未回傳音頻資料")
+                with open(output_path, "wb") as f:
+                    f.write(base64.b64decode(audio.data))
+                return output_path
+            except Exception as e:
+                if not self._is_rate_limit_error(e):
+                    raise
+                last_err = e
+                if attempt < max_retries:
+                    delay = self._extract_retry_delay(e, default=10.0 * (attempt + 1))
+                    print(f"DEBUG: Lyria 429 限制，等待 {delay + 1:.1f} 秒後重試...")
+                    time.sleep(delay + 1.0)
+                else:
+                    break
+
+        raise RuntimeError(f"Lyria BGM 生成失敗（已重試多次）：{last_err}")
+
+    @staticmethod
+    def _build_looped_bgm(bgm_segment, target_ms: int, crossfade_ms: int = 1000):
+        """BGM 足長工具：若 bgm_segment 不夠 target_ms，用 crossfade 無縭循環拼接直到夠長。"""
+        if len(bgm_segment) >= target_ms:
+            return bgm_segment[:target_ms]
+        result = bgm_segment
+        # 保護：crossfade 不能大於單段長度
+        cf = min(crossfade_ms, len(bgm_segment) - 1)
+        while len(result) < target_ms:
+            result = result.append(bgm_segment, crossfade=cf)
+        return result[:target_ms]
 
     def _build_tts_prompt(self, scene: Scene, line: ScriptLine) -> str:
         """根據 Google 官方 TTS 提示指南，組裝結構化 prompt。
@@ -482,7 +536,11 @@ class GeminiDirector(IDirector):
         return self._decode_audio_data(part.data, part.mime_type or "")
 
     def generate_scene_audio(self, scene: Scene, voice_map: dict, output_path: str) -> str:
-        """以朗讀對話組為單位生成語音，支援雙角色合奏與自動降級單人錄音，拼接成場景音檔。"""
+        """以朗讀對話組為單位生成語音，支援雙角色合奏與自動降級單人錄音，拼接成場景音檔。
+
+        若 scene.bgm_prompt 非空，呼叫 Lyria 生成器樂 BGM，以 -18 dB 恒定墓底混入對白：
+        場景開頭 2 秒淡入、結尾 2 秒淡出，對白超過 30 秒則以 1 秒 crossfade 無縭循環。
+        """
         self._require_key()
         from pydub import AudioSegment
 
@@ -518,5 +576,47 @@ class GeminiDirector(IDirector):
 
             combined += group_audio
 
-        combined.export(output_path, format="mp3")
+        # ── BGM 混音 ────────────────────────────────────────────────
+        if scene.bgm_prompt:
+            import os
+
+            bgm_path = os.path.join(
+                os.path.dirname(output_path),
+                f"bgm_scene_{scene.scene_id:02d}.mp3",
+            )
+            try:
+                print(f"DEBUG: 生成場景 BGM（Scene {scene.scene_id}）...")
+                self.generate_scene_bgm(scene.bgm_prompt, bgm_path)
+                raw_bgm = AudioSegment.from_mp3(bgm_path)
+
+                BGM_DB = -18  # BGM 混入音量（對白永遠主導）
+                FADE_IN_MS = 2000  # 淡入
+                FADE_OUT_MS = 2000  # 淡出
+                CROSSFADE_MS = 1000  # crossfade loop 接縭
+
+                dialogue_ms = len(combined)
+
+                # 1. 建立足夠長的 BGM 軌道
+                bgm_track = self._build_looped_bgm(raw_bgm, dialogue_ms, CROSSFADE_MS)
+
+                # 2. 整體壓低 -18 dB + 淡入淡出
+                bgm_track = (bgm_track + BGM_DB).fade_in(FADE_IN_MS).fade_out(FADE_OUT_MS)
+
+                # 3. 對齊長度（BGM 軌道與對白同長）
+                max_len = max(len(bgm_track), dialogue_ms)
+                bgm_track = bgm_track + AudioSegment.silent(duration=max_len - len(bgm_track))
+                dialogue_padded = combined + AudioSegment.silent(duration=max_len - dialogue_ms)
+
+                # 4. overlay：BGM 墊底，對白在上
+                final_audio = bgm_track.overlay(dialogue_padded)
+                print(
+                    f"DEBUG: BGM 混音完成（BGM {BGM_DB} dB，總長 {len(final_audio) / 1000:.1f} 秒）"
+                )
+            except Exception as e:
+                print(f"DEBUG: BGM 生成失敗（{e}），跳過 BGM，僅輸出對白")
+                final_audio = combined
+        else:
+            final_audio = combined
+
+        final_audio.export(output_path, format="mp3")
         return output_path

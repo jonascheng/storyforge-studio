@@ -18,6 +18,7 @@ class Scene:
     title: str
     lines: list[ScriptLine]
     audio_path: str | None = None
+    bgm_prompt: str | None = None  # AI 導演建議的場景背景音樂 prompt（給 Lyria 用）
 
     def to_dict(self):
         return {
@@ -25,6 +26,7 @@ class Scene:
             "title": self.title,
             "lines": [line.to_dict() for line in self.lines],
             "audio_path": self.audio_path,
+            "bgm_prompt": self.bgm_prompt,
         }
 
 

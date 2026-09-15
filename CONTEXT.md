@@ -57,6 +57,10 @@ _Avoid_: 檔案總管、dialog、選單彈窗
 將各場景的獨立音檔依序合併成最終有聲書成品的過程。在所有場景都生成完畢後執行。
 _Avoid_: 合併、concatenate
 
+**場景背景音樂 (Scene BGM)**:
+AI 導演為每個場景在劇本拆解時自動建議的背景音樂英文描述（存於 `bgm_prompt` 欄位），用來呼叫 Lyria 3 Clip 生成 30 秒純器樂（根據場景情緒選風格，例如緊張場景用緩慢弦樂、溫馨場景用輕柔吉他），以 -18 dB 恆定墊底方式混入對白，場景首尾各 2 秒淡入/淡出，對白超過 30 秒時 1 秒 crossfade 無縫循環。使用者可在劇本編輯區修改或清空（留空不生成）。
+_Avoid_: 環境音效、SFX、bgm_prompt
+
 **思考深度 (Thinking Level)**:
 AI 導演在拆解劇本與生成聲音導演備註時的思考深淺程度（分為 MEDIUM 與 LOW）。
 _Avoid_: model parameter, reasoning level

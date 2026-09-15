@@ -159,6 +159,7 @@ class StoryForgeApi:
                 scene_id=scene_data["scene_id"],
                 title=scene_data["title"],
                 lines=lines,
+                bgm_prompt=scene_data.get("bgm_prompt"),  # 向後相容：舊資料無此欄預設 None
             )
 
             output_path = folder.scene_audio_path(scene.scene_id)

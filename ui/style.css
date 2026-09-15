@@ -293,6 +293,41 @@ body::before {
 .script-line input.role { font-weight: 600; color: var(--accent2); }
 .script-line input.emotion { color: #fbbf24; font-size: 12px; }
 
+/* ── SFX Prompt Row ──────────────────────────────────────── */
+.sfx-row {
+    margin-bottom: 12px;
+    padding: 10px 12px;
+    background: rgba(52, 211, 153, 0.05);
+    border: 1px solid rgba(52, 211, 153, 0.2);
+    border-radius: 8px;
+}
+.sfx-label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    color: rgba(52, 211, 153, 0.8);
+    letter-spacing: 0.03em;
+    margin-bottom: 6px;
+}
+.sfx-prompt-input {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 12px;
+    padding: 7px 10px;
+    resize: vertical;
+    line-height: 1.5;
+    transition: border-color 0.15s;
+    box-sizing: border-box;
+    opacity: 0.85;
+}
+.sfx-prompt-input:focus { outline: none; border-color: rgba(52, 211, 153, 0.6); opacity: 1; }
+.sfx-prompt-input::placeholder { color: rgba(255,255,255,0.25); font-style: italic; }
+
+
 /* ── Final actions ───────────────────────────────────────── */
 .final-actions { text-align: center; }
 
