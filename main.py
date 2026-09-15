@@ -1,4 +1,5 @@
 import os
+import traceback
 
 import webview
 
@@ -17,6 +18,12 @@ class StoryForgeApi:
         self.processor = None
         self.story_paths = {}
         self._init_processor()
+
+    @staticmethod
+    def _handle_error(action: str, e: Exception) -> dict:
+        print(f"\n[API ERROR] {action}: {e}")
+        traceback.print_exc()
+        return {"error": str(e)}
 
     def _init_processor(self):
         api_key = self.storage.get_api_key()
@@ -38,7 +45,7 @@ class StoryForgeApi:
             self._init_processor()
             return {"status": "ok"}
         except Exception as e:
-            return {"error": str(e)}
+            return self._handle_error("save_settings", e)
 
     def get_settings(self):
         return {
@@ -68,7 +75,7 @@ class StoryForgeApi:
                 "voice_map": voice_map,
             }
         except Exception as e:
-            return {"error": str(e)}
+            return self._handle_error("break_down_story", e)
 
     def check_screenplay(self, story_name: str):
         folder = self._get_storage(story_name)
@@ -78,7 +85,7 @@ class StoryForgeApi:
         try:
             return {"stories": StoryFolderStorage.list_stories()}
         except Exception as e:
-            return {"error": str(e)}
+            return self._handle_error("list_stories", e)
 
     def select_story_folder(self):
         try:
@@ -99,7 +106,7 @@ class StoryForgeApi:
             story_name = os.path.basename(folder_path)
             return self.load_screenplay(story_name, folder_path=folder_path)
         except Exception as e:
-            return {"error": str(e)}
+            return self._handle_error("select_story_folder", e)
 
     def load_screenplay(self, story_name: str, folder_path: str = None):
         try:
@@ -125,7 +132,7 @@ class StoryForgeApi:
                 "folder_path": folder.folder_path,
             }
         except Exception as e:
-            return {"error": str(e)}
+            return self._handle_error("load_screenplay", e)
 
     def save_screenplay_progress(self, story_name: str, scenes_data: list):
         try:
@@ -134,11 +141,16 @@ class StoryForgeApi:
             folder.save_screenplay(scenes_data)
             return {"status": "ok"}
         except Exception as e:
-            return {"error": str(e)}
+            return self._handle_error("save_screenplay_progress", e)
 
     # ── 場景語音生成 ──────────────────────────────────────────────
     def generate_scene_audio(self, scene_data: dict, story_name: str):
         try:
+            if not scene_data or not isinstance(scene_data, dict):
+                raise ValueError("傳入的場景資料無效 (scene_data 為空)")
+            if "lines" not in scene_data or scene_data["lines"] is None:
+                raise ValueError("場景資料缺少台詞清單 (lines 為空)")
+
             folder = self._get_storage(story_name)
             folder.ensure_folder()
 
@@ -147,8 +159,8 @@ class StoryForgeApi:
 
             lines = [ScriptLine(**ln) for ln in scene_data["lines"]]
             scene = Scene(
-                scene_id=scene_data["scene_id"],
-                title=scene_data["title"],
+                scene_id=scene_data.get("scene_id", 1),
+                title=scene_data.get("title", ""),
                 lines=lines,
                 bgm_prompt=scene_data.get("bgm_prompt"),  # 向後相容：舊資料無此欄預設 None
             )
@@ -157,14 +169,14 @@ class StoryForgeApi:
             path = self.processor.generate_scene_audio(scene, voice_map, output_path)
             return {"status": "ok", "path": path}
         except Exception as e:
-            return {"error": str(e)}
+            return self._handle_error("generate_scene_audio", e)
 
     def suggest_safe_lines(self, original_text: str):
         try:
             suggestions = self.processor.suggest_safe_lines(original_text)
             return {"status": "ok", "suggestions": suggestions}
         except Exception as e:
-            return {"error": str(e)}
+            return self._handle_error("suggest_safe_lines", e)
 
     # ── 最終拼接 ──────────────────────────────────────────────────
     def mix_final_audio(self, story_name: str, scene_ids: list):
@@ -179,7 +191,7 @@ class StoryForgeApi:
             AudioMixer.mix(scene_paths, output_path)
             return {"status": "ok", "path": output_path}
         except Exception as e:
-            return {"error": str(e)}
+            return self._handle_error("mix_final_audio", e)
 
     # ── 聲音對應表更新 ────────────────────────────────────────────
     def update_voice_map(self, story_name: str, voice_map: dict):
@@ -189,7 +201,7 @@ class StoryForgeApi:
             vm_storage.save(voice_map)
             return {"status": "ok"}
         except Exception as e:
-            return {"error": str(e)}
+            return self._handle_error("update_voice_map", e)
 
     # ── 場景音檔刪除 ──────────────────────────────────────────────
     def delete_scene_audio(self, scene_id: int, story_name: str):
@@ -200,7 +212,7 @@ class StoryForgeApi:
                 os.remove(path)
             return {"status": "ok"}
         except Exception as e:
-            return {"error": str(e)}
+            return self._handle_error("delete_scene_audio", e)
 
 
 def main():

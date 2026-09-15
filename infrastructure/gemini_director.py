@@ -491,9 +491,15 @@ class GeminiDirector(IDirector):
             ),
         )
 
-        if not response.candidates:
+        candidate = response.candidates[0] if response.candidates else None
+        content = candidate.content if candidate else None
+        parts = content.parts if content else None
+
+        if not parts or not getattr(parts[0], "inline_data", None):
             reason = "未知原因"
-            if response.prompt_feedback and hasattr(response.prompt_feedback, "block_reason"):
+            if candidate and getattr(candidate, "finish_reason", None):
+                reason = str(getattr(candidate.finish_reason, "name", candidate.finish_reason))
+            elif response.prompt_feedback and hasattr(response.prompt_feedback, "block_reason"):
                 reason = str(
                     getattr(
                         response.prompt_feedback.block_reason,
@@ -503,7 +509,7 @@ class GeminiDirector(IDirector):
                 )
             raise ValueError(f"台詞「{line.text}」遭到 AI 安全審查阻擋 (原因: {reason})")
 
-        part = response.candidates[0].content.parts[0].inline_data
+        part = parts[0].inline_data
         return self._decode_audio_data(part.data, part.mime_type or "")
 
     def _generate_multi_speaker_group_audio(
@@ -560,9 +566,15 @@ class GeminiDirector(IDirector):
             ),
         )
 
-        if not response.candidates:
+        candidate = response.candidates[0] if response.candidates else None
+        content = candidate.content if candidate else None
+        parts = content.parts if content else None
+
+        if not parts or not getattr(parts[0], "inline_data", None):
             reason = "未知原因"
-            if response.prompt_feedback and hasattr(response.prompt_feedback, "block_reason"):
+            if candidate and getattr(candidate, "finish_reason", None):
+                reason = str(getattr(candidate.finish_reason, "name", candidate.finish_reason))
+            elif response.prompt_feedback and hasattr(response.prompt_feedback, "block_reason"):
                 reason = str(
                     getattr(
                         response.prompt_feedback.block_reason,
@@ -572,7 +584,7 @@ class GeminiDirector(IDirector):
                 )
             raise ValueError(f"合奏對話遭到 AI 安全審查阻擋 (原因: {reason})")
 
-        part = response.candidates[0].content.parts[0].inline_data
+        part = parts[0].inline_data
         return self._decode_audio_data(part.data, part.mime_type or "")
 
     def generate_scene_audio(self, scene: Scene, voice_map: dict, output_path: str) -> str:

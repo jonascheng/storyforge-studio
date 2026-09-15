@@ -444,3 +444,42 @@ def test_decode_audio_data_handles_lowercase_l16_without_ffmpeg_from_file():
         assert seg.channels == 1
         assert seg.sample_width == 2
         assert len(seg) == 20  # 20ms
+
+
+def test_generate_single_line_audio_handles_none_parts_with_friendly_error():
+    director = GeminiDirector(api_key="fake-key")
+    scene = Scene(scene_id=1, title="測試", lines=[])
+    line = ScriptLine(role="主角", emotion="生氣", text="危險台詞！")
+
+    mock_resp = MagicMock()
+    mock_candidate = MagicMock()
+    mock_candidate.content = MagicMock(parts=None)
+    mock_candidate.finish_reason = "SAFETY"
+    mock_resp.candidates = [mock_candidate]
+    mock_resp.prompt_feedback = None
+
+    with patch.object(director, "_generate_content_with_retry", return_value=mock_resp):
+        with pytest.raises(ValueError, match="遭到 AI 安全審查阻擋.*SAFETY"):
+            director._generate_single_line_audio(scene, line, {"主角": "Puck"})
+
+
+def test_generate_multi_speaker_group_audio_handles_none_parts_with_friendly_error():
+    director = GeminiDirector(api_key="fake-key")
+    scene = Scene(scene_id=1, title="測試", lines=[])
+    group = [
+        ScriptLine(role="角色A", emotion="平靜", text="台詞A"),
+        ScriptLine(role="角色B", emotion="平靜", text="台詞B"),
+    ]
+
+    mock_resp = MagicMock()
+    mock_candidate = MagicMock()
+    mock_candidate.content = MagicMock(parts=None)
+    mock_candidate.finish_reason = "SAFETY"
+    mock_resp.candidates = [mock_candidate]
+    mock_resp.prompt_feedback = None
+
+    with patch.object(director, "_generate_content_with_retry", return_value=mock_resp):
+        with pytest.raises(ValueError, match="遭到 AI 安全審查阻擋.*SAFETY"):
+            director._generate_multi_speaker_group_audio(
+                scene, group, {"角色A": "Puck", "角色B": "Leda"}
+            )
