@@ -6,6 +6,7 @@ from google.genai import types
 
 from core.entities import Scene, Screenplay, Script, ScriptLine
 from core.use_cases import IDirector
+from core.voice_catalog import resolve_voice_map
 
 
 class GeminiDirector(IDirector):
@@ -126,27 +127,41 @@ class GeminiDirector(IDirector):
     # ── 新場景介面 ────────────────────────────────────────────────
     def break_down_screenplay(self, story_text: str) -> Screenplay:
         self._require_key()
-        prompt = f"""你是一位專業的有聲書導演。請將以下故事拆解為多個「場景」。
+        prompt = f"""你是一位專業的有聲書導演。請將以下故事拆解為多個「場景」，並為所有出場角色挑選最合適的聲音演員。
+
+聲音演員庫（供角色配音挑選，每位角色盡量使用不同演員）：
+- 童趣活潑：Puck (歡快活潑), Leda (年輕稚嫩), Fenrir (激昂興奮), Zephyr (明亮清爽), Autonoe (明亮靈巧), Laomedeia (節奏輕快), Sadachbia (活力充沛)
+- 溫柔親切：Aoede (輕鬆愜意), Callirrhoe (隨和悠閒), Umbriel (柔和放鬆), Achernar (柔和細膩), Achird (親切友善), Vindemiatrix (溫柔慈愛), Sulafat (溫暖醇厚)
+- 成熟沉穩：Schedar (平穩勻稱), Charon (資訊知性), Gacrux (成熟穩健), Iapetus (清晰咬字), Erinome (清澈透亮), Algieba (絲滑沉著), Despina (優雅平和), Rasalgethi (知性詳實), Sadaltager (博學多聞), Zubenelgenubi (自然隨意)
+- 威嚴粗獷：Algenib (低沉沙啞怪獸), Orus (威嚴果決), Alnilam (剛正堅毅), Pulcherrima (直接果敢), Enceladus (神秘深邃)
+- 說書人（旁白）：固定使用 Kore
 
 每個場景代表一個情節單元（時間地點或情緒基調相對一致），每個場景最多 300 字。
 每個場景需要：
 1. 一個 scene_id（從 1 開始）
 2. 一個簡短的中文場景標題（4-10 個字）
-3. 一個 bgm_prompt（英文，給 Lyria 的場景背景音樂描述。要求：純器樂、無人聲、音量漸退。根據場景情緒决定風格，例如緊張場景用緩慢弦樂、溫馨場景用輕柔龋琴、除幕場景用史詩氣吸笻小提琴。格式："[genre/mood] instrumental, no vocals, subtle and understated as background music for audiobook")。若場景简短或無需 BGM，請設為 null。
+3. 一個 bgm_prompt（英文，給 Lyria 的場景背景音樂描述。要求：純器樂、無人聲、音量漸退。根據場景情緒决定風格，例如緊張場景用緩慢弦樂、溫馨場景用輕柔鋼琴、除幕場景用史詩氣勢小提琴。格式："[genre/mood] instrumental, no vocals, subtle and understated as background music for audiobook"）。若場景簡短或無需 BGM，請設為 null。
 4. 所有台詞行，每行需有：role（角色名或「旁白」）、emotion（情緒）、text（台詞）、voice_direction_note（給 TTS 的英文聲音導演備註，例如 "[calm, slow]" 或 "speak with a trembling voice"）
 
-請嚴格以 JSON 陣列格式回傳，例如：
-[
-  {{
-    "scene_id": 1,
-    "title": "書房中的爭吵",
-    "bgm_prompt": "Tense, slow orchestral strings, no vocals, subtle and understated as background music for audiobook",
-    "lines": [
-      {{"role": "旁白", "emotion": "緊張", "text": "門突然被推開", "voice_direction_note": "[tense, urgent]"}},
-      {{"role": "小明", "emotion": "憤怒", "text": "你為什麼騙我！", "voice_direction_note": "[angry, raised voice]"}}
-    ]
-  }}
-]
+請嚴格以 JSON 格式回傳，格式範例如下：
+{{
+  "voice_map": {{
+    "旁白": "Kore",
+    "小明": "Puck",
+    "怪獸": "Algenib"
+  }},
+  "scenes": [
+    {{
+      "scene_id": 1,
+      "title": "書房中的爭吵",
+      "bgm_prompt": "Tense, slow orchestral strings, no vocals, subtle and understated as background music for audiobook",
+      "lines": [
+        {{"role": "旁白", "emotion": "緊張", "text": "門突然被推開", "voice_direction_note": "[tense, urgent]"}},
+        {{"role": "小明", "emotion": "憤怒", "text": "你為什麼騙我！", "voice_direction_note": "[angry, raised voice]"}}
+      ]
+    }}
+  ]
+}}
 
 故事原文：
 {story_text}
@@ -155,9 +170,21 @@ class GeminiDirector(IDirector):
         text = self._clean_json(raw)
         try:
             data = json.loads(text)
+            if isinstance(data, dict):
+                raw_scenes = data.get("scenes", [])
+                raw_voice_map = data.get("voice_map", {})
+            elif isinstance(data, list):
+                raw_scenes = data
+                raw_voice_map = {}
+            else:
+                raise ValueError("JSON 根元素必須是物件或陣列")
+
             scenes = []
-            for item in data:
+            role_counts: dict[str, int] = {}
+            for item in raw_scenes:
                 lines = [ScriptLine(**ln) for ln in item["lines"]]
+                for ln in lines:
+                    role_counts[ln.role] = role_counts.get(ln.role, 0) + 1
                 scenes.append(
                     Scene(
                         scene_id=item["scene_id"],
@@ -166,7 +193,15 @@ class GeminiDirector(IDirector):
                         bgm_prompt=item.get("bgm_prompt"),
                     )
                 )
-            return Screenplay(scenes=scenes)
+
+            all_roles = list(role_counts.keys())
+            voice_map = resolve_voice_map(
+                raw_voice_map,
+                all_roles,
+                narrator_voice="Kore",
+                role_line_counts=role_counts,
+            )
+            return Screenplay(scenes=scenes, voice_map=voice_map)
         except Exception as e:
             raise ValueError(f"AI 導演回傳的格式有誤: {e}")
 

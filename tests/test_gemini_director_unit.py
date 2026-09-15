@@ -58,6 +58,51 @@ def test_break_down_screenplay_strips_markdown_fences():
     with patch.object(director, "_call_director_model", return_value=fenced):
         screenplay = director.break_down_screenplay("故事")
     assert len(screenplay.scenes) == 2
+    # 向後相容舊陣列回傳：自動依角色補齊 voice_map
+    assert "旁白" in screenplay.voice_map
+    assert "小明" in screenplay.voice_map
+    assert screenplay.voice_map["旁白"] == "Kore"
+
+
+def test_break_down_screenplay_parses_dict_with_voice_map():
+    director = GeminiDirector(api_key="fake-key")
+    response_payload = json.dumps(
+        {
+            "voice_map": {"小明": "Puck", "怪獸": "Algenib", "旁白": "Kore"},
+            "scenes": [
+                {
+                    "scene_id": 1,
+                    "title": "遭遇怪獸",
+                    "lines": [
+                        {
+                            "role": "旁白",
+                            "emotion": "緊張",
+                            "text": "大霧散去...",
+                            "voice_direction_note": "[tense]",
+                        },
+                        {
+                            "role": "小明",
+                            "emotion": "害怕",
+                            "text": "快跑！",
+                            "voice_direction_note": "[fearful]",
+                        },
+                        {
+                            "role": "怪獸",
+                            "emotion": "怒吼",
+                            "text": "吼！",
+                            "voice_direction_note": "[roaring]",
+                        },
+                    ],
+                }
+            ],
+        }
+    )
+    with patch.object(director, "_call_director_model", return_value=response_payload):
+        screenplay = director.break_down_screenplay("故事")
+    assert len(screenplay.scenes) == 1
+    assert screenplay.voice_map["旁白"] == "Kore"
+    assert screenplay.voice_map["小明"] == "Puck"
+    assert screenplay.voice_map["怪獸"] == "Algenib"
 
 
 def test_break_down_screenplay_raises_on_bad_json():

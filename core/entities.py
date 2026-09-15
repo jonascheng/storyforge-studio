@@ -1,4 +1,4 @@
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 
 
 @dataclass
@@ -33,9 +33,13 @@ class Scene:
 @dataclass
 class Screenplay:
     scenes: list[Scene]
+    voice_map: dict[str, str] = field(default_factory=dict)
 
     def to_dict(self):
-        return {"scenes": [scene.to_dict() for scene in self.scenes]}
+        return {
+            "scenes": [scene.to_dict() for scene in self.scenes],
+            "voice_map": self.voice_map,
+        }
 
 
 # 向後相容 — 舊 Script 仍可用

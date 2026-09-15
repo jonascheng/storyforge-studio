@@ -10,8 +10,6 @@ from infrastructure.gemini_director import GeminiDirector
 from infrastructure.story_folder_storage import BASE_DIR, StoryFolderStorage
 from infrastructure.voice_map_storage import VoiceMapStorage
 
-_DEFAULT_VOICES = ["Kore", "Charon", "Fenrir", "Aoede", "Puck"]
-
 
 class StoryForgeApi:
     def __init__(self):
@@ -56,15 +54,8 @@ class StoryForgeApi:
             folder = self._get_storage(story_name)
             folder.ensure_folder()
 
-            # 建立初始角色聲音對應表（AI 建議）
-            all_roles = list({line.role for scene in screenplay.scenes for line in scene.lines})
-            voice_map = {
-                role: (_DEFAULT_VOICES[i % len(_DEFAULT_VOICES)] if role != "旁白" else "Kore")
-                for i, role in enumerate(all_roles)
-            }
-            # 旁白固定 Kore
-            voice_map["旁白"] = "Kore"
-
+            # 儲存角色聲音對應表（AI 建議 + 防撞處理）
+            voice_map = screenplay.voice_map
             vm_storage = VoiceMapStorage(folder.folder_path)
             vm_storage.save(voice_map)
 

@@ -70,3 +70,13 @@ def test_screenplay_to_dict():
     data = screenplay.to_dict()
     assert len(data["scenes"]) == 1
     assert data["scenes"][0]["title"] == "結局"
+    assert data["voice_map"] == {}
+
+
+def test_screenplay_with_voice_map():
+    line = ScriptLine(role="主角", emotion="高興", text="嗨！")
+    scene = Scene(scene_id=1, title="開始", lines=[line])
+    vm = {"主角": "Puck", "旁白": "Kore"}
+    screenplay = Screenplay(scenes=[scene], voice_map=vm)
+    assert screenplay.voice_map == vm
+    assert screenplay.to_dict()["voice_map"] == vm
