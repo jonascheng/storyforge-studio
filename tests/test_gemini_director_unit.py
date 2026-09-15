@@ -424,8 +424,23 @@ def test_build_multi_speaker_prompt_includes_emotion():
     ]
     roles = ["爸爸", "小美"]
     prompt = director._build_multi_speaker_prompt(scene, group, roles)
-
-    assert "沉穩" in prompt
-    assert "害怕" in prompt
     assert "爸爸: (沉穩, excited) 快看！" in prompt
     assert "小美: (害怕, trembling) 那是怪獸嗎？" in prompt
+
+
+def test_decode_audio_data_handles_lowercase_l16_without_ffmpeg_from_file():
+    from pydub import AudioSegment
+
+    director = GeminiDirector(api_key="fake-key")
+    pcm_data = b"\x00\x00" * 480  # 480 samples = 20ms at 24000Hz
+    mime_type = "audio/l16; rate=24000; channels=1"
+
+    with patch.object(AudioSegment, "from_file") as mock_from_file:
+        seg = director._decode_audio_data(pcm_data, mime_type)
+
+        # 確保不觸發 from_file (ffmpeg)
+        mock_from_file.assert_not_called()
+        assert seg.frame_rate == 24000
+        assert seg.channels == 1
+        assert seg.sample_width == 2
+        assert len(seg) == 20  # 20ms

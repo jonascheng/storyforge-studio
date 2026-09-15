@@ -100,7 +100,8 @@ class GeminiDirector(IDirector):
             model=self.DIRECTOR_MODEL,
             contents=prompt,
             config=types.GenerateContentConfig(
-                thinking_config=types.ThinkingConfig(thinking_level=self.thinking_level)
+                thinking_config=types.ThinkingConfig(thinking_level=self.thinking_level),
+                automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
             ),
         )
         return response.text
@@ -312,25 +313,27 @@ class GeminiDirector(IDirector):
     def _decode_audio_data(self, audio_data: bytes, mime_type: str):
         from pydub import AudioSegment
 
-        if (
-            not mime_type
-            or "L16" in mime_type
-            or "pcm" in mime_type.lower()
-            or "raw" in mime_type.lower()
-        ):
+        lower_mime = mime_type.lower() if mime_type else ""
+        if not lower_mime or "l16" in lower_mime or "pcm" in lower_mime or "raw" in lower_mime:
             rate = 24000
-            for part_str in mime_type.split(";"):
+            channels = 1
+            for part_str in lower_mime.split(";"):
                 part_str = part_str.strip()
-                if part_str.lower().startswith("rate="):
+                if part_str.startswith("rate="):
                     try:
                         rate = int(part_str.split("=")[1])
+                    except ValueError:
+                        pass
+                elif part_str.startswith("channels="):
+                    try:
+                        channels = int(part_str.split("=")[1])
                     except ValueError:
                         pass
             return AudioSegment(
                 data=audio_data,
                 sample_width=2,  # 16-bit
                 frame_rate=rate,
-                channels=1,
+                channels=channels,
             )
         else:
             try:
@@ -477,6 +480,7 @@ class GeminiDirector(IDirector):
             contents=tts_prompt,
             config=types.GenerateContentConfig(
                 response_modalities=["AUDIO"],
+                automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
                 speech_config=types.SpeechConfig(
                     voice_config=types.VoiceConfig(
                         prebuilt_voice_config=types.PrebuiltVoiceConfig(
@@ -547,6 +551,7 @@ class GeminiDirector(IDirector):
             contents=tts_prompt,
             config=types.GenerateContentConfig(
                 response_modalities=["AUDIO"],
+                automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
                 speech_config=types.SpeechConfig(
                     multi_speaker_voice_config=types.MultiSpeakerVoiceConfig(
                         speaker_voice_configs=speaker_voice_configs,
