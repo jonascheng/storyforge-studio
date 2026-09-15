@@ -118,12 +118,12 @@ def test_requires_api_key():
         director.break_down_screenplay("故事")
 
 
-def test_generate_content_retries_on_429_and_succeeds():
+def test_create_interaction_retries_on_429_and_succeeds():
     from google.genai.errors import ClientError
 
     director = GeminiDirector(api_key="fake-key")
     mock_response = MagicMock()
-    mock_response.text = "成功"
+    mock_response.output_text = "成功"
 
     err_429 = ClientError(
         429,
@@ -138,18 +138,19 @@ def test_generate_content_retries_on_429_and_succeeds():
             }
         },
     )
-    mock_gen = MagicMock(side_effect=[err_429, mock_response])
-    director._client.models.generate_content = mock_gen
+    mock_create = MagicMock(side_effect=[err_429, mock_response])
+    director._client.interactions.create = mock_create
 
     with patch("time.sleep") as mock_sleep:
-        res = director._generate_content_with_retry(model="any", contents="test")
+        res = director._create_interaction_with_retry(model="any", input="test")
         assert res == mock_response
-        assert mock_gen.call_count == 2
+        assert mock_create.call_count == 2
         assert mock_sleep.call_count == 1
         assert mock_sleep.call_args[0][0] >= 5.0
+        assert mock_create.call_args[1]["store"] is False
 
 
-def test_generate_content_fails_after_max_retries():
+def test_create_interaction_fails_after_max_retries():
     from google.genai.errors import ClientError
 
     director = GeminiDirector(api_key="fake-key")
@@ -163,27 +164,27 @@ def test_generate_content_fails_after_max_retries():
             }
         },
     )
-    mock_gen = MagicMock(side_effect=err_429)
-    director._client.models.generate_content = mock_gen
+    mock_create = MagicMock(side_effect=err_429)
+    director._client.interactions.create = mock_create
 
     with patch("time.sleep"):
         with pytest.raises(RuntimeError, match="額度已達每分鐘上限"):
-            director._generate_content_with_retry(model="any", contents="test", max_retries=2)
+            director._create_interaction_with_retry(model="any", input="test", max_retries=2)
 
 
-def test_generate_content_does_not_retry_non_429():
+def test_create_interaction_does_not_retry_non_429():
     director = GeminiDirector(api_key="fake-key")
-    mock_gen = MagicMock(side_effect=ValueError("其他錯誤"))
-    director._client.models.generate_content = mock_gen
+    mock_create = MagicMock(side_effect=ValueError("其他錯誤"))
+    director._client.interactions.create = mock_create
 
     with patch("time.sleep") as mock_sleep:
         with pytest.raises(ValueError, match="其他錯誤"):
-            director._generate_content_with_retry(model="any", contents="test")
+            director._create_interaction_with_retry(model="any", input="test")
         assert mock_sleep.call_count == 0
-        assert mock_gen.call_count == 1
+        assert mock_create.call_count == 1
 
 
-def test_generate_content_aborts_immediately_when_delay_exceeds_threshold():
+def test_create_interaction_aborts_immediately_when_delay_exceeds_threshold():
     from google.genai.errors import ClientError
 
     director = GeminiDirector(api_key="fake-key")
@@ -200,14 +201,14 @@ def test_generate_content_aborts_immediately_when_delay_exceeds_threshold():
             }
         },
     )
-    mock_gen = MagicMock(side_effect=err_429)
-    director._client.models.generate_content = mock_gen
+    mock_create = MagicMock(side_effect=err_429)
+    director._client.interactions.create = mock_create
 
     with patch("time.sleep") as mock_sleep:
         with pytest.raises(RuntimeError, match="今日額度已達上限"):
-            director._generate_content_with_retry(model="any", contents="test", max_delay=60.0)
+            director._create_interaction_with_retry(model="any", input="test", max_delay=60.0)
         assert mock_sleep.call_count == 0
-        assert mock_gen.call_count == 1
+        assert mock_create.call_count == 1
 
 
 def test_group_lines_into_dialogue_groups_alternating_two_speakers():
@@ -332,16 +333,20 @@ def test_generate_scene_audio_calls_multi_speaker_and_exports():
     )
     voice_map = {"小明": "Kore", "小美": "Puck"}
 
-    # Mock audio response
+    # Mock audio interaction response
+    import base64
+
     mock_resp = MagicMock()
-    mock_part = MagicMock()
+    mock_audio = MagicMock()
     # 1000 samples of 16-bit PCM = 2000 bytes
-    mock_part.inline_data.data = b"\x00\x00" * 1000
-    mock_part.inline_data.mime_type = "audio/pcm;rate=24000"
-    mock_resp.candidates = [MagicMock(content=MagicMock(parts=[mock_part]))]
+    mock_audio.data = base64.b64encode(b"\x00\x00" * 1000).decode("utf-8")
+    mock_audio.mime_type = "audio/pcm;rate=24000"
+    mock_resp.output_audio = mock_audio
 
     with (
-        patch.object(director, "_generate_content_with_retry", return_value=mock_resp) as mock_gen,
+        patch.object(
+            director, "_create_interaction_with_retry", return_value=mock_resp
+        ) as mock_gen,
         patch.object(AudioSegment, "export") as mock_export,
     ):
         out = director.generate_scene_audio(scene, voice_map, "/tmp/test_scene.mp3")
@@ -349,12 +354,16 @@ def test_generate_scene_audio_calls_multi_speaker_and_exports():
         assert out == "/tmp/test_scene.mp3"
         assert mock_gen.call_count == 1  # 2 lines in 1 multi-speaker call!
         # Verify speech config in call
-        config_used = mock_gen.call_args[1]["config"]
-        assert config_used.speech_config.multi_speaker_voice_config is not None
+        gen_config = mock_gen.call_args[1]["generation_config"]
+        assert "speech_config" in gen_config
+        assert len(gen_config["speech_config"]) == 2
+        assert mock_gen.call_args[1]["store"] is False
         mock_export.assert_called_once_with("/tmp/test_scene.mp3", format="mp3")
 
 
 def test_generate_scene_audio_falls_back_to_single_speaker_on_failure():
+    import base64
+
     from pydub import AudioSegment
 
     director = GeminiDirector(api_key="fake-key")
@@ -369,10 +378,10 @@ def test_generate_scene_audio_falls_back_to_single_speaker_on_failure():
     voice_map = {"小明": "Kore", "小美": "Puck"}
 
     mock_resp_success = MagicMock()
-    mock_part = MagicMock()
-    mock_part.inline_data.data = b"\x00\x00" * 1000
-    mock_part.inline_data.mime_type = "audio/pcm;rate=24000"
-    mock_resp_success.candidates = [MagicMock(content=MagicMock(parts=[mock_part]))]
+    mock_audio = MagicMock()
+    mock_audio.data = base64.b64encode(b"\x00\x00" * 1000).decode("utf-8")
+    mock_audio.mime_type = "audio/pcm;rate=24000"
+    mock_resp_success.output_audio = mock_audio
 
     # First call (multi-speaker) fails with ValueError, next 2 calls (single-speaker) succeed
     call_count = 0
@@ -380,13 +389,14 @@ def test_generate_scene_audio_falls_back_to_single_speaker_on_failure():
     def mock_generate(*args, **kwargs):
         nonlocal call_count
         call_count += 1
-        config = kwargs.get("config")
-        if config and config.speech_config and config.speech_config.multi_speaker_voice_config:
-            raise ValueError("AI 安全審查阻擋合奏")
+        gen_config = kwargs.get("generation_config", {})
+        speech_config = gen_config.get("speech_config", [])
+        if len(speech_config) == 2:
+            raise ValueError("合奏對話遭到 AI 安全審查阻擋")
         return mock_resp_success
 
     with (
-        patch.object(director, "_generate_content_with_retry", side_effect=mock_generate),
+        patch.object(director, "_create_interaction_with_retry", side_effect=mock_generate),
         patch.object(AudioSegment, "export") as mock_export,
     ):
         out = director.generate_scene_audio(scene, voice_map, "/tmp/test_scene.mp3")
@@ -446,24 +456,37 @@ def test_decode_audio_data_handles_lowercase_l16_without_ffmpeg_from_file():
         assert len(seg) == 20  # 20ms
 
 
-def test_generate_single_line_audio_handles_none_parts_with_friendly_error():
+def test_generate_single_line_audio_handles_missing_audio_with_friendly_error():
     director = GeminiDirector(api_key="fake-key")
     scene = Scene(scene_id=1, title="測試", lines=[])
     line = ScriptLine(role="主角", emotion="生氣", text="危險台詞！")
 
     mock_resp = MagicMock()
-    mock_candidate = MagicMock()
-    mock_candidate.content = MagicMock(parts=None)
-    mock_candidate.finish_reason = "SAFETY"
-    mock_resp.candidates = [mock_candidate]
-    mock_resp.prompt_feedback = None
+    mock_resp.output_audio = None
+    step_mock = MagicMock()
+    step_mock.error = "SAFETY_VIOLATION"
+    mock_resp.steps = [step_mock]
 
-    with patch.object(director, "_generate_content_with_retry", return_value=mock_resp):
-        with pytest.raises(ValueError, match="遭到 AI 安全審查阻擋.*SAFETY"):
+    with patch.object(director, "_create_interaction_with_retry", return_value=mock_resp):
+        with pytest.raises(ValueError, match="遭到 AI 安全審查阻擋.*SAFETY_VIOLATION"):
             director._generate_single_line_audio(scene, line, {"主角": "Puck"})
 
 
-def test_generate_multi_speaker_group_audio_handles_none_parts_with_friendly_error():
+def test_generate_single_line_audio_handles_api_safety_exception_with_friendly_error():
+    director = GeminiDirector(api_key="fake-key")
+    scene = Scene(scene_id=1, title="測試", lines=[])
+    line = ScriptLine(role="主角", emotion="生氣", text="危險台詞！")
+
+    with patch.object(
+        director,
+        "_create_interaction_with_retry",
+        side_effect=Exception("Blocked by safety filters"),
+    ):
+        with pytest.raises(ValueError, match="遭到 AI 安全審查阻擋.*Blocked by safety filters"):
+            director._generate_single_line_audio(scene, line, {"主角": "Puck"})
+
+
+def test_generate_multi_speaker_group_audio_handles_missing_audio_with_friendly_error():
     director = GeminiDirector(api_key="fake-key")
     scene = Scene(scene_id=1, title="測試", lines=[])
     group = [
@@ -472,14 +495,45 @@ def test_generate_multi_speaker_group_audio_handles_none_parts_with_friendly_err
     ]
 
     mock_resp = MagicMock()
-    mock_candidate = MagicMock()
-    mock_candidate.content = MagicMock(parts=None)
-    mock_candidate.finish_reason = "SAFETY"
-    mock_resp.candidates = [mock_candidate]
-    mock_resp.prompt_feedback = None
+    mock_resp.output_audio = None
+    step_mock = MagicMock()
+    step_mock.error = "SAFETY_VIOLATION"
+    mock_resp.steps = [step_mock]
 
-    with patch.object(director, "_generate_content_with_retry", return_value=mock_resp):
-        with pytest.raises(ValueError, match="遭到 AI 安全審查阻擋.*SAFETY"):
+    with patch.object(director, "_create_interaction_with_retry", return_value=mock_resp):
+        with pytest.raises(ValueError, match="遭到 AI 安全審查阻擋.*SAFETY_VIOLATION"):
             director._generate_multi_speaker_group_audio(
                 scene, group, {"角色A": "Puck", "角色B": "Leda"}
             )
+
+
+def test_suggest_safe_lines_uses_structured_output():
+    director = GeminiDirector(api_key="fake-key")
+    payload = json.dumps({"suggestions": ["替換句一", "替換句二", "替換句三"]})
+    with patch.object(director, "_call_director_model", return_value=payload) as mock_call:
+        res = director.suggest_safe_lines("被阻擋的台詞")
+        assert res == ["替換句一", "替換句二", "替換句三"]
+        assert mock_call.call_count == 1
+        # 驗證傳入了 schema
+        assert mock_call.call_args[1]["schema"] is not None
+
+
+def test_generate_scene_bgm_calls_create_interaction_with_retry():
+    import base64
+
+    director = GeminiDirector(api_key="fake-key")
+    mock_resp = MagicMock()
+    mock_audio = MagicMock()
+    mock_audio.data = base64.b64encode(b"dummy_bgm").decode("utf-8")
+    mock_resp.output_audio = mock_audio
+
+    with (
+        patch.object(
+            director, "_create_interaction_with_retry", return_value=mock_resp
+        ) as mock_create,
+        patch("builtins.open", MagicMock()),
+    ):
+        res = director.generate_scene_bgm("Tense strings", "/tmp/bgm.mp3")
+        assert res == "/tmp/bgm.mp3"
+        assert mock_create.call_args[1]["model"] == "lyria-3-clip-preview"
+        assert mock_create.call_args[1]["store"] is False

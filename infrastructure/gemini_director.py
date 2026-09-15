@@ -1,12 +1,13 @@
+import base64
 import io
 import json
 
 from google import genai
-from google.genai import types
 
 from core.entities import Scene, Screenplay, Script, ScriptLine
 from core.use_cases import IDirector
 from core.voice_catalog import resolve_voice_map
+from infrastructure.schemas import SafeLinesDTO, ScreenplayDTO
 
 
 class GeminiDirector(IDirector):
@@ -64,16 +65,19 @@ class GeminiDirector(IDirector):
         err_str = str(err)
         return "429" in err_str or "RESOURCE_EXHAUSTED" in err_str
 
-    def _generate_content_with_retry(
+    def _create_interaction_with_retry(
         self, *args, max_retries: int = 3, max_delay: float = 60.0, **kwargs
     ):
         import time
 
         self._require_key()
+        if "store" not in kwargs:
+            kwargs["store"] = False
+
         last_err = None
         for attempt in range(max_retries + 1):
             try:
-                return self._client.models.generate_content(*args, **kwargs)
+                return self._client.interactions.create(*args, **kwargs)
             except Exception as e:
                 if not self._is_rate_limit_error(e):
                     raise
@@ -94,17 +98,25 @@ class GeminiDirector(IDirector):
 
         raise RuntimeError(f"AI 額度已達每分鐘上限（已自動重試多次）：{last_err}")
 
-    def _call_director_model(self, prompt: str) -> str:
+    def _call_director_model(self, prompt: str, schema: dict | None = None) -> str:
         self._require_key()
-        response = self._generate_content_with_retry(
+        response_format = None
+        if schema:
+            response_format = {
+                "type": "text",
+                "mime_type": "application/json",
+                "schema": schema,
+            }
+        interaction = self._create_interaction_with_retry(
             model=self.DIRECTOR_MODEL,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                thinking_config=types.ThinkingConfig(thinking_level=self.thinking_level),
-                automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
-            ),
+            input=prompt,
+            response_format=response_format,
+            generation_config={
+                "thinking_level": self.thinking_level.lower(),
+            },
+            store=False,
         )
-        return response.text
+        return getattr(interaction, "output_text", "") or ""
 
     def _clean_json(self, text: str) -> str:
         text = text.strip()
@@ -167,18 +179,23 @@ class GeminiDirector(IDirector):
 故事原文：
 {story_text}
 """
-        raw = self._call_director_model(prompt)
+        raw = self._call_director_model(prompt, schema=ScreenplayDTO.model_json_schema())
         text = self._clean_json(raw)
         try:
-            data = json.loads(text)
-            if isinstance(data, dict):
-                raw_scenes = data.get("scenes", [])
-                raw_voice_map = data.get("voice_map", {})
-            elif isinstance(data, list):
-                raw_scenes = data
-                raw_voice_map = {}
-            else:
-                raise ValueError("JSON 根元素必須是物件或陣列")
+            try:
+                dto = ScreenplayDTO.model_validate_json(text)
+                raw_scenes = [s.model_dump() for s in dto.scenes]
+                raw_voice_map = dto.voice_map
+            except Exception:
+                data = json.loads(text)
+                if isinstance(data, dict):
+                    raw_scenes = data.get("scenes", [])
+                    raw_voice_map = data.get("voice_map", {})
+                elif isinstance(data, list):
+                    raw_scenes = data
+                    raw_voice_map = {}
+                else:
+                    raise ValueError("JSON 根元素必須是物件或陣列")
 
             scenes = []
             role_counts: dict[str, int] = {}
@@ -213,57 +230,51 @@ class GeminiDirector(IDirector):
 「{original_text}」
 
 請提供 3 個意思相近，但用語更溫和、絕對安全的替代方案，讓它可以順利通過語音生成。
-請直接以 JSON 陣列的格式回傳這 3 個字串，例如：
-["安全替代句一", "安全替代句二", "安全替代句三"]
 """
-        raw = self._call_director_model(prompt)
+        raw = self._call_director_model(prompt, schema=SafeLinesDTO.model_json_schema())
         text = self._clean_json(raw)
         try:
-            suggestions = json.loads(text)
-            if isinstance(suggestions, list) and all(isinstance(s, str) for s in suggestions):
-                return suggestions[:3]
-            return []
+            try:
+                dto = SafeLinesDTO.model_validate_json(text)
+                return dto.suggestions[:3]
+            except Exception:
+                data = json.loads(text)
+                if isinstance(data, dict) and "suggestions" in data:
+                    return data["suggestions"][:3]
+                if isinstance(data, list) and all(isinstance(s, str) for s in data):
+                    return data[:3]
+                return []
         except Exception:
             return []
 
     def generate_scene_bgm(self, bgm_prompt: str, output_path: str) -> str:
         """呼叫 Lyria 3 Clip 生成 30 秒場景背景音樂，存為 MP3，回傳路徑。
 
-        使用 Interactions API（與 TTS 的 generate_content API 不同）。
+        使用 Interactions API。
         bgm_prompt 應為英文器樂描述，包含 no vocals 與情緒風格指示。
         """
-        import base64
-        import time
-
         self._require_key()
         LYRIA_MODEL = "lyria-3-clip-preview"
-        max_retries = 3
-        last_err = None
 
-        for attempt in range(max_retries + 1):
-            try:
-                interaction = self._client.interactions.create(
-                    model=LYRIA_MODEL,
-                    input=bgm_prompt,
-                )
-                audio = interaction.output_audio
-                if not audio or not audio.data:
-                    raise ValueError("Lyria 未回傳音頻資料")
-                with open(output_path, "wb") as f:
-                    f.write(base64.b64decode(audio.data))
-                return output_path
-            except Exception as e:
-                if not self._is_rate_limit_error(e):
-                    raise
-                last_err = e
-                if attempt < max_retries:
-                    delay = self._extract_retry_delay(e, default=10.0 * (attempt + 1))
-                    print(f"DEBUG: Lyria 429 限制，等待 {delay + 1:.1f} 秒後重試...")
-                    time.sleep(delay + 1.0)
-                else:
-                    break
-
-        raise RuntimeError(f"Lyria BGM 生成失敗（已重試多次）：{last_err}")
+        try:
+            interaction = self._create_interaction_with_retry(
+                model=LYRIA_MODEL,
+                input=bgm_prompt,
+                store=False,
+            )
+            audio = getattr(interaction, "output_audio", None)
+            if not audio or not getattr(audio, "data", None):
+                raise ValueError("Lyria 未回傳音頻資料")
+            audio_bytes = (
+                base64.b64decode(audio.data) if isinstance(audio.data, str) else audio.data
+            )
+            with open(output_path, "wb") as f:
+                f.write(audio_bytes)
+            return output_path
+        except Exception as e:
+            if "額度" in str(e):
+                raise
+            raise RuntimeError(f"Lyria BGM 生成失敗（已重試多次）：{e}") from e
 
     @staticmethod
     def _build_looped_bgm(bgm_segment, target_ms: int, crossfade_ms: int = 1000):
@@ -468,49 +479,37 @@ class GeminiDirector(IDirector):
         voice_name = voice_map.get(line.role, "Kore")
         tts_prompt = self._build_tts_prompt(scene, line)
         print("\n" + "=" * 50)
-        print("[DEBUG TTS - 單人朗讀]")
+        print("[DEBUG TTS - 單人朗讀 (Interactions API)]")
         print(f"  • 角色: {line.role}")
-        print("  • speech_config:")
-        print(f"      voice_config: {{ prebuilt_voice_config: {{ voice_name: '{voice_name}' }} }}")
+        print(f"  • speech_config: [{{'voice': '{voice_name}'}}]")
         print(f"  • prompt:\n{tts_prompt.strip()}")
         print("=" * 50 + "\n")
 
-        response = self._generate_content_with_retry(
-            model=self.TTS_MODEL,
-            contents=tts_prompt,
-            config=types.GenerateContentConfig(
-                response_modalities=["AUDIO"],
-                automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
-                speech_config=types.SpeechConfig(
-                    voice_config=types.VoiceConfig(
-                        prebuilt_voice_config=types.PrebuiltVoiceConfig(
-                            voice_name=voice_name,
-                        )
-                    )
-                ),
-            ),
-        )
+        try:
+            interaction = self._create_interaction_with_retry(
+                model=self.TTS_MODEL,
+                input=tts_prompt,
+                response_format={"type": "audio"},
+                generation_config={"speech_config": [{"voice": voice_name}]},
+                store=False,
+            )
+        except Exception as e:
+            if self._is_rate_limit_error(e) or "額度" in str(e):
+                raise
+            raise ValueError(f"台詞「{line.text}」遭到 AI 安全審查阻擋 (原因: {e})") from e
 
-        candidate = response.candidates[0] if response.candidates else None
-        content = candidate.content if candidate else None
-        parts = content.parts if content else None
-
-        if not parts or not getattr(parts[0], "inline_data", None):
+        audio = getattr(interaction, "output_audio", None)
+        if not audio or not getattr(audio, "data", None):
             reason = "未知原因"
-            if candidate and getattr(candidate, "finish_reason", None):
-                reason = str(getattr(candidate.finish_reason, "name", candidate.finish_reason))
-            elif response.prompt_feedback and hasattr(response.prompt_feedback, "block_reason"):
-                reason = str(
-                    getattr(
-                        response.prompt_feedback.block_reason,
-                        "name",
-                        response.prompt_feedback.block_reason,
-                    )
-                )
+            steps = getattr(interaction, "steps", None) or []
+            for step in steps:
+                if getattr(step, "error", None):
+                    reason = str(step.error)
             raise ValueError(f"台詞「{line.text}」遭到 AI 安全審查阻擋 (原因: {reason})")
 
-        part = parts[0].inline_data
-        return self._decode_audio_data(part.data, part.mime_type or "")
+        audio_bytes = base64.b64decode(audio.data) if isinstance(audio.data, str) else audio.data
+        mime = getattr(audio, "mime_type", None) or "audio/pcm;rate=24000"
+        return self._decode_audio_data(audio_bytes, mime)
 
     def _generate_multi_speaker_group_audio(
         self,
@@ -524,68 +523,44 @@ class GeminiDirector(IDirector):
         v1 = voice_map.get(roles[0], "Kore")
         v2 = voice_map.get(roles[1], "Puck")
         print("\n" + "=" * 50)
-        print("[DEBUG TTS - 雙角色合奏]")
+        print("[DEBUG TTS - 雙角色合奏 (Interactions API)]")
         print(f"  • 合奏角色: {roles[0]} & {roles[1]}")
         print("  • speech_config:")
-        print("      multi_speaker_voice_config:")
-        print(f"        - speaker: '{roles[0]}', voice_name: '{v1}'")
-        print(f"        - speaker: '{roles[1]}', voice_name: '{v2}'")
+        print(f"      - speaker: '{roles[0]}', voice: '{v1}'")
+        print(f"      - speaker: '{roles[1]}', voice: '{v2}'")
         print(f"  • prompt:\n{tts_prompt.strip()}")
         print("=" * 50 + "\n")
 
-        speaker_voice_configs = [
-            types.SpeakerVoiceConfig(
-                speaker=roles[0],
-                voice_config=types.VoiceConfig(
-                    prebuilt_voice_config=types.PrebuiltVoiceConfig(
-                        voice_name=voice_map.get(roles[0], "Kore"),
-                    )
-                ),
-            ),
-            types.SpeakerVoiceConfig(
-                speaker=roles[1],
-                voice_config=types.VoiceConfig(
-                    prebuilt_voice_config=types.PrebuiltVoiceConfig(
-                        voice_name=voice_map.get(roles[1], "Puck"),
-                    )
-                ),
-            ),
-        ]
+        try:
+            interaction = self._create_interaction_with_retry(
+                model=self.TTS_MODEL,
+                input=tts_prompt,
+                response_format={"type": "audio"},
+                generation_config={
+                    "speech_config": [
+                        {"speaker": roles[0], "voice": v1},
+                        {"speaker": roles[1], "voice": v2},
+                    ]
+                },
+                store=False,
+            )
+        except Exception as e:
+            if self._is_rate_limit_error(e) or "額度" in str(e):
+                raise
+            raise ValueError(f"合奏對話遭到 AI 安全審查阻擋 (原因: {e})") from e
 
-        response = self._generate_content_with_retry(
-            model=self.TTS_MODEL,
-            contents=tts_prompt,
-            config=types.GenerateContentConfig(
-                response_modalities=["AUDIO"],
-                automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
-                speech_config=types.SpeechConfig(
-                    multi_speaker_voice_config=types.MultiSpeakerVoiceConfig(
-                        speaker_voice_configs=speaker_voice_configs,
-                    )
-                ),
-            ),
-        )
-
-        candidate = response.candidates[0] if response.candidates else None
-        content = candidate.content if candidate else None
-        parts = content.parts if content else None
-
-        if not parts or not getattr(parts[0], "inline_data", None):
+        audio = getattr(interaction, "output_audio", None)
+        if not audio or not getattr(audio, "data", None):
             reason = "未知原因"
-            if candidate and getattr(candidate, "finish_reason", None):
-                reason = str(getattr(candidate.finish_reason, "name", candidate.finish_reason))
-            elif response.prompt_feedback and hasattr(response.prompt_feedback, "block_reason"):
-                reason = str(
-                    getattr(
-                        response.prompt_feedback.block_reason,
-                        "name",
-                        response.prompt_feedback.block_reason,
-                    )
-                )
+            steps = getattr(interaction, "steps", None) or []
+            for step in steps:
+                if getattr(step, "error", None):
+                    reason = str(step.error)
             raise ValueError(f"合奏對話遭到 AI 安全審查阻擋 (原因: {reason})")
 
-        part = parts[0].inline_data
-        return self._decode_audio_data(part.data, part.mime_type or "")
+        audio_bytes = base64.b64decode(audio.data) if isinstance(audio.data, str) else audio.data
+        mime = getattr(audio, "mime_type", None) or "audio/pcm;rate=24000"
+        return self._decode_audio_data(audio_bytes, mime)
 
     def generate_scene_audio(self, scene: Scene, voice_map: dict, output_path: str) -> str:
         """以朗讀對話組為單位生成語音，支援雙角色合奏與自動降級單人錄音，拼接成場景音檔。
