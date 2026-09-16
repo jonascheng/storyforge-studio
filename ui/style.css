@@ -183,6 +183,20 @@ body::before {
 .scene-regen-btn:hover:not(:disabled) { background: rgba(124,110,245,0.1); border-color: var(--accent); }
 .scene-regen-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
+.scene-play-btn {
+    background: transparent;
+    color: var(--accent2);
+    border: 1px solid rgba(124,110,245,0.3);
+    border-radius: var(--radius-sm);
+    padding: 7px 10px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+    margin-right: 6px;
+}
+.scene-play-btn:hover:not(:disabled) { background: rgba(124,110,245,0.1); border-color: var(--accent); }
+
+
 .settings-btn {
     color: var(--text-muted);
     font-size: 14px;

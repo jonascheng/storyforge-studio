@@ -30,6 +30,10 @@ class IStorage(Protocol):
 
     def get_thinking_level(self) -> str: ...
 
+    def save_pause_seconds(self, seconds: int) -> None: ...
+
+    def get_pause_seconds(self) -> int: ...
+
 
 class StoryProcessor:
     def __init__(self, director: IDirector, storage: IStorage):
@@ -67,3 +71,9 @@ class StoryProcessor:
 
     def get_thinking_level(self) -> str:
         return self.storage.get_thinking_level()
+
+    def save_pause_seconds(self, seconds: int) -> None:
+        self.storage.save_pause_seconds(seconds)
+
+    def get_pause_seconds(self) -> int:
+        return self.storage.get_pause_seconds()

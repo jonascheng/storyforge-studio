@@ -60,6 +60,29 @@ class LocalFileStorage(IStorage):
             except json.JSONDecodeError:
                 return "MEDIUM"
 
+    def save_pause_seconds(self, seconds: int) -> None:
+        self._ensure_dir()
+        config = {}
+        if os.path.exists(self.config_path):
+            with open(self.config_path, encoding="utf-8") as f:
+                try:
+                    config = json.load(f)
+                except json.JSONDecodeError:
+                    pass
+        config["pause_seconds"] = seconds
+        with open(self.config_path, "w", encoding="utf-8") as f:
+            json.dump(config, f)
+
+    def get_pause_seconds(self) -> int:
+        if not os.path.exists(self.config_path):
+            return 1
+        with open(self.config_path, encoding="utf-8") as f:
+            try:
+                config = json.load(f)
+                return config.get("pause_seconds", 1)
+            except json.JSONDecodeError:
+                return 1
+
     def save_audio_file(self, filename: str, audio_data: bytes) -> str:
         self._ensure_dir()
         output_path = os.path.join(self.base_path, filename)

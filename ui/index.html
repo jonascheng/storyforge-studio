@@ -14,7 +14,7 @@
                 <span class="logo-icon">✨</span>
                 <h1>StoryForge</h1>
             </div>
-            <div class="settings-btn" id="btnSettings">⚙️ 通行證設定</div>
+            <div class="settings-btn" id="btnSettings">⚙️ 設定</div>
         </header>
 
         <main class="main-content">
@@ -79,7 +79,7 @@
     <!-- Settings Modal -->
     <div class="modal hidden" id="settingsModal">
         <div class="modal-content glass-panel">
-            <h2>大腦通行證 (API Key)</h2>
+            <h2>一般設定</h2>
             <p>請輸入您的 Gemini API 通行證，我們會幫您記住。</p>
             <input type="password" id="apiKeyInput" placeholder="AIzaSy...">
             <div style="margin-top: 15px;">
@@ -87,6 +87,16 @@
                 <select id="thinkingLevelSelect" style="width: 100%; padding: 8px; margin-top: 5px; border-radius: 4px; border: 1px solid #ccc; background: rgba(255, 255, 255, 0.9);">
                     <option value="MEDIUM">MEDIUM (預設)</option>
                     <option value="LOW">LOW (較快但較淺)</option>
+                </select>
+            </div>
+            <div style="margin-top: 15px;">
+                <label for="pauseSecondsSelect">場景間隔停頓 (秒)</label>
+                <select id="pauseSecondsSelect" style="width: 100%; padding: 8px; margin-top: 5px; border-radius: 4px; border: 1px solid #ccc; background: rgba(255, 255, 255, 0.9);">
+                    <option value="1">1 秒 (預設)</option>
+                    <option value="2">2 秒</option>
+                    <option value="3">3 秒</option>
+                    <option value="4">4 秒</option>
+                    <option value="5">5 秒</option>
                 </select>
             </div>
             <div class="modal-actions" style="margin-top: 20px;">

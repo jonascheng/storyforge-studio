@@ -1,3 +1,4 @@
+import base64
 import os
 import traceback
 
@@ -39,10 +40,11 @@ class StoryForgeApi:
         return StoryFolderStorage(story_name, folder_path=stored_path)
 
     # ── 設定 ────────────────────────────────────────────────
-    def save_settings(self, key: str, thinking_level: str):
+    def save_settings(self, key: str, thinking_level: str, pause_seconds: int = 1):
         try:
             self.processor.save_key(key)
             self.processor.save_thinking_level(thinking_level)
+            self.processor.save_pause_seconds(int(pause_seconds))
             self._init_processor()
             return {"status": "ok"}
         except Exception as e:
@@ -52,6 +54,7 @@ class StoryForgeApi:
         return {
             "key": self.processor.get_key(),
             "thinking_level": self.processor.get_thinking_level(),
+            "pause_seconds": self.processor.get_pause_seconds(),
         }
 
     # ── 劇本拆解 ─────────────────────────────────────────────────
@@ -189,6 +192,18 @@ class StoryForgeApi:
         except Exception as e:
             return self._handle_error("generate_scene_audio", e)
 
+    def get_scene_audio_base64(self, scene_id: int, story_name: str):
+        try:
+            folder = self._get_storage(story_name)
+            path = folder.scene_audio_path(scene_id)
+            if not os.path.exists(path):
+                return {"error": "Audio file not found"}
+            with open(path, "rb") as f:
+                encoded = base64.b64encode(f.read()).decode("utf-8")
+            return {"status": "ok", "base64": encoded}
+        except Exception as e:
+            return self._handle_error("get_scene_audio_base64", e)
+
     def suggest_safe_lines(self, original_text: str):
         try:
             suggestions = self.processor.suggest_safe_lines(original_text)
@@ -206,7 +221,8 @@ class StoryForgeApi:
                 return {"error": f"以下場景音檔尚未生成：{missing}"}
 
             output_path = folder.final_audio_path()
-            AudioMixer.mix(scene_paths, output_path)
+            pause_seconds = self.processor.get_pause_seconds()
+            AudioMixer.mix(scene_paths, output_path, pause_seconds=pause_seconds)
             return {"status": "ok", "path": output_path}
         except Exception as e:
             return self._handle_error("mix_final_audio", e)

@@ -6,6 +6,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const btnSaveSettings  = document.getElementById("btnSaveSettings");
     const apiKeyInput      = document.getElementById("apiKeyInput");
     const thinkingLevelSelect = document.getElementById("thinkingLevelSelect");
+    const pauseSecondsSelect  = document.getElementById("pauseSecondsSelect");
 
     const storyInput       = document.getElementById("storyInput");
     const storyNameInput   = document.getElementById("storyNameInput");
@@ -32,6 +33,22 @@ document.addEventListener("DOMContentLoaded", () => {
     let currentStory   = "";   // 故事名稱
     let audioReady     = {};   // { scene_id: true/false }
     let currentBgmMap  = null; // { themes: { [theme_id]: { name, prompt } } }
+
+    let currentAudio = null;
+    let playingSceneId = null;
+
+    function stopCurrentAudio() {
+        if (currentAudio) {
+            currentAudio.pause();
+            currentAudio.currentTime = 0;
+            currentAudio = null;
+        }
+        if (playingSceneId) {
+            const btn = document.getElementById(`play-${playingSceneId}`);
+            if (btn) btn.textContent = "▶️";
+            playingSceneId = null;
+        }
+    }
 
     // ── Utilities ─────────────────────────────────────────────
     function showLoading(text, sub = "請稍候") {
@@ -104,6 +121,9 @@ document.addEventListener("DOMContentLoaded", () => {
         if (settings && !settings.error) {
             apiKeyInput.value = settings.key || "";
             thinkingLevelSelect.value = settings.thinking_level || "MEDIUM";
+            if (settings.pause_seconds) {
+                pauseSecondsSelect.value = settings.pause_seconds;
+            }
         }
         settingsModal.classList.remove("hidden");
     });
@@ -111,7 +131,8 @@ document.addEventListener("DOMContentLoaded", () => {
     btnSaveSettings.addEventListener("click", async () => {
         const key = apiKeyInput.value.trim();
         const level = thinkingLevelSelect.value;
-        await api("save_settings", key, level);
+        const pauseSecs = parseInt(pauseSecondsSelect.value) || 1;
+        await api("save_settings", key, level, pauseSecs);
         settingsModal.classList.add("hidden");
         showToast("設定已儲存 ✓");
     });
@@ -289,6 +310,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const statusClass = isReady ? "done" : "pending";
         const statusText = isReady ? "✓ 已完成" : "○ 尚未生成";
         const btnText = isReady ? "🎙 重新生成" : "🎙 生成語音";
+        const playBtnHtml = isReady ? `<button class="scene-play-btn" id="play-${scene.scene_id}" title="試聽此場景">▶️</button>` : "";
         
         const card = document.createElement("div");
         card.className = isReady ? "scene-card has-audio" : "scene-card";
@@ -308,6 +330,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     <span class="audio-status ${statusClass}" id="status-${scene.scene_id}">
                         ${statusText}
                     </span>
+                    ${playBtnHtml}
                     <button class="scene-regen-btn" id="regen-${scene.scene_id}">
                         ${btnText}
                     </button>
@@ -414,6 +437,34 @@ document.addEventListener("DOMContentLoaded", () => {
         // Wire regen button
         document.getElementById(`regen-${scene.scene_id}`)
             .addEventListener("click", () => regenScene(scene.scene_id, idx));
+
+        // Wire play button
+        if (isReady) {
+            document.getElementById(`play-${scene.scene_id}`).addEventListener("click", async (e) => {
+                e.stopPropagation();
+                if (playingSceneId === scene.scene_id) {
+                    stopCurrentAudio();
+                    return;
+                }
+                stopCurrentAudio();
+                const btn = e.currentTarget;
+                btn.textContent = "⏳";
+                const resp = await api("get_scene_audio_base64", scene.scene_id, currentStory);
+                if (resp.error) {
+                    showToast(resp.error, "error");
+                    btn.textContent = "▶️";
+                    return;
+                }
+                const audio = new Audio("data:audio/mp3;base64," + resp.base64);
+                audio.onended = () => {
+                    if (playingSceneId === scene.scene_id) stopCurrentAudio();
+                };
+                currentAudio = audio;
+                playingSceneId = scene.scene_id;
+                audio.play();
+                btn.textContent = "⏹️";
+            });
+        }
     }
 
     // ── Regen single scene ────────────────────────────────────
@@ -590,22 +641,53 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // ── Mix Final ─────────────────────────────────────────────
     btnMixFinal.addEventListener("click", async () => {
-        const readyIds = currentScenes
+        let readyIds = currentScenes
             .map(s => s.scene_id)
             .filter(id => audioReady[id]);
-
-        if (readyIds.length === 0) {
-            showToast("請先為至少一個場景生成語音！", "error");
-            return;
-        }
 
         const missingCount = currentScenes.length - readyIds.length;
         if (missingCount > 0) {
             const go = confirm(
                 `還有 ${missingCount} 個場景尚未生成語音，\n` +
-                `是否只使用已完成的 ${readyIds.length} 個場景合成有聲書？`
+                `是否先自動為這些遺漏的場景生成語音，再進行合併？\n\n` +
+                `(按「確定」自動生成並合併，按「取消」則只合併目前已生成的 ${readyIds.length} 個場景)`
             );
-            if (!go) return;
+            
+            if (go) {
+                setBtnLoading(btnMixFinal, true, "合併中...");
+                showLoading("正在依序生成遺漏的場景...", "請稍候");
+                for (let i = 0; i < currentScenes.length; i++) {
+                    const sc = currentScenes[i];
+                    if (!audioReady[sc.scene_id]) {
+                        loadingSubtext.textContent = `生成中：場景 ${sc.scene_id} - ${sc.title}`;
+                        const resp = await api("generate_scene_audio", sc, currentStory);
+                        if (resp.error) {
+                            showToast(`場景 ${sc.scene_id} 生成失敗：${resp.error}`, "error");
+                            hideLoading();
+                            setBtnLoading(btnMixFinal, false, "🔊 產出完整有聲書");
+                            return;
+                        }
+                        audioReady[sc.scene_id] = true;
+                        const card = document.getElementById(`scene-card-${sc.scene_id}`);
+                        if(card) {
+                            card.classList.remove("generating");
+                            card.classList.add("has-audio");
+                            const status = document.getElementById(`status-${sc.scene_id}`);
+                            if(status) {
+                                status.className = "audio-status done";
+                                status.textContent = "✓ 已完成";
+                            }
+                        }
+                    }
+                }
+                readyIds = currentScenes.map(s => s.scene_id);
+            } else if (readyIds.length === 0) {
+                showToast("請先為至少一個場景生成語音！", "error");
+                return;
+            }
+        } else if (readyIds.length === 0) {
+            showToast("請先為至少一個場景生成語音！", "error");
+            return;
         }
 
         setBtnLoading(btnMixFinal, true, "合併中...");
