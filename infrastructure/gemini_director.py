@@ -4,10 +4,10 @@ import json
 
 from google import genai
 
-from core.entities import Scene, Screenplay, Script, ScriptLine
+from core.entities import BgmMap, BgmTheme, Scene, Screenplay, Script, ScriptLine
 from core.use_cases import IDirector
 from core.voice_catalog import resolve_voice_map
-from infrastructure.schemas import SafeLinesDTO, ScreenplayDTO
+from infrastructure.schemas import BgmMapDTO, SafeLinesDTO, ScreenplayDTO
 
 
 class GeminiDirector(IDirector):
@@ -138,8 +138,47 @@ class GeminiDirector(IDirector):
         raise NotImplementedError("請改用 generate_scene_audio")
 
     # ── 新場景介面 ────────────────────────────────────────────────
-    def break_down_screenplay(self, story_text: str) -> Screenplay:
+    def define_bgm_themes(self, story_text: str) -> BgmMap:
         self._require_key()
+        prompt = f"""你是一位專業的有聲書配樂指導。請先掃描以下故事原文，定義出 2 到 4 個貫穿全劇的「BGM 主題（BGM Themes）」（例如：日常、緊張、戰鬥、感傷等）。
+每個主題需要有一個簡短的英文 ID (theme_id)、一個中文名稱 (name)，以及給 Lyria 音樂生成 AI 的英文描述 (prompt)。
+音樂描述要求：純器樂、無人聲、音量漸退，適合做為有聲書墊底配樂。例如："[tension/mood] instrumental, no vocals, subtle and understated as background music for audiobook"。
+
+請嚴格以 JSON 格式回傳，格式範例如下：
+{{
+  "themes": {{
+    "tension": {{
+      "name": "緊張",
+      "prompt": "Tense, slow orchestral strings, no vocals, subtle and understated as background music for audiobook"
+    }},
+    "daily": {{
+      "name": "日常",
+      "prompt": "Light and warm acoustic guitar, no vocals, subtle and understated as background music for audiobook"
+    }}
+  }}
+}}
+
+故事原文：
+{story_text}
+"""
+        raw = self._call_director_model(prompt, schema=BgmMapDTO.model_json_schema())
+        text = self._clean_json(raw)
+        try:
+            dto = BgmMapDTO.model_validate_json(text)
+            themes = {k: BgmTheme(name=v.name, prompt=v.prompt) for k, v in dto.themes.items()}
+            return BgmMap(themes=themes)
+        except Exception as e:
+            raise ValueError(f"AI 回傳的 BGM 主題格式有誤: {e}")
+
+    def break_down_screenplay(self, story_text: str, bgm_map: BgmMap | None = None) -> Screenplay:
+        self._require_key()
+
+        bgm_themes_str = "無"
+        if bgm_map and bgm_map.themes:
+            bgm_themes_str = "\n".join(
+                f"- ID: {k}, 名稱: {v.name}, 描述: {v.prompt}" for k, v in bgm_map.themes.items()
+            )
+
         prompt = f"""你是一位專業的有聲書導演。請將以下故事拆解為多個「場景」，並為所有出場角色挑選最合適的聲音演員。
 
 聲音演員庫（供角色配音挑選，請依照角色性別挑選相符前綴的演員，每位角色盡量使用不同演員）：
@@ -149,11 +188,14 @@ class GeminiDirector(IDirector):
 - 威嚴粗獷：[中性] Algenib (低沉沙啞怪獸), [男] Orus (威嚴果決), [男] Alnilam (剛正堅毅), [女] Pulcherrima (直接果敢), [男] Enceladus (神秘深邃)
 - 說書人（旁白）：固定使用 [中性] Kore
 
+BGM 主題清單（供場景配樂挑選）：
+{bgm_themes_str}
+
 每個場景代表一個情節單元（時間地點或情緒基調相對一致），每個場景最多 300 字。
 每個場景需要：
 1. 一個 scene_id（從 1 開始）
 2. 一個簡短的中文場景標題（4-10 個字）
-3. 一個 bgm_prompt（英文，給 Lyria 的場景背景音樂描述。要求：純器樂、無人聲、音量漸退。根據場景情緒决定風格，例如緊張場景用緩慢弦樂、溫馨場景用輕柔鋼琴、除幕場景用史詩氣勢小提琴。格式："[genre/mood] instrumental, no vocals, subtle and understated as background music for audiobook"）。若場景簡短或無需 BGM，請設為 null。
+3. 一個 bgm_theme_id（從上方定義好的 BGM 主題清單中挑選最適合此場景的 theme_id）。若場景簡短或無需 BGM，請設為 null。
 4. 所有台詞行，每行需有：role（角色名或「旁白」）、emotion（情緒）、text（台詞）、voice_direction_note（給 TTS 的英文聲音導演備註，例如 "[calm, slow]" 或 "speak with a trembling voice"）
 
 請嚴格以 JSON 格式回傳，格式範例如下：
@@ -167,7 +209,7 @@ class GeminiDirector(IDirector):
     {{
       "scene_id": 1,
       "title": "書房中的爭吵",
-      "bgm_prompt": "Tense, slow orchestral strings, no vocals, subtle and understated as background music for audiobook",
+      "bgm_theme_id": "tension",
       "lines": [
         {{"role": "旁白", "emotion": "緊張", "text": "門突然被推開", "voice_direction_note": "[tense, urgent]"}},
         {{"role": "小明", "emotion": "憤怒", "text": "你為什麼騙我！", "voice_direction_note": "[angry, raised voice]"}}
@@ -208,7 +250,7 @@ class GeminiDirector(IDirector):
                         scene_id=item["scene_id"],
                         title=item["title"],
                         lines=lines,
-                        bgm_prompt=item.get("bgm_prompt"),
+                        bgm_theme_id=item.get("bgm_theme_id"),
                     )
                 )
 
@@ -639,10 +681,12 @@ class GeminiDirector(IDirector):
         mime = getattr(audio, "mime_type", None) or "audio/pcm;rate=24000"
         return self._decode_audio_data(audio_bytes, mime)
 
-    def generate_scene_audio(self, scene: Scene, voice_map: dict, output_path: str) -> str:
+    def generate_scene_audio(
+        self, scene: Scene, voice_map: dict, output_path: str, bgm_map: BgmMap | None = None
+    ) -> str:
         """以朗讀對話組為單位生成語音，支援雙角色合奏、單人整組批次與自動降級單人錄音，拼接成場景音檔。
 
-        若 scene.bgm_prompt 非空，呼叫 Lyria 生成器樂 BGM，以 -18 dB 恒定墓底混入對白：
+        若 scene.bgm_theme_id 非空且在 bgm_map 中，則載入（或懶加載生成）對應的 BGM 主題音檔，以 -18 dB 恆定墊底混入對白：
         場景開頭 2 秒淡入、結尾 2 秒淡出，對白超過 30 秒則以 1 秒 crossfade 無縭循環。
         """
         self._require_key()
@@ -688,16 +732,21 @@ class GeminiDirector(IDirector):
             combined += group_audio
 
         # ── BGM 混音 ────────────────────────────────────────────────
-        if scene.bgm_prompt:
+        if scene.bgm_theme_id and bgm_map and scene.bgm_theme_id in bgm_map.themes:
             import os
 
+            theme = bgm_map.themes[scene.bgm_theme_id]
             bgm_path = os.path.join(
                 os.path.dirname(output_path),
-                f"bgm_scene_{scene.scene_id:02d}.mp3",
+                f"theme_{scene.bgm_theme_id}.mp3",
             )
             try:
-                print(f"DEBUG: 生成場景 BGM（Scene {scene.scene_id}）...")
-                self.generate_scene_bgm(scene.bgm_prompt, bgm_path)
+                if not os.path.exists(bgm_path):
+                    print(f"DEBUG: 首次遇到 BGM 主題 '{theme.name}'，呼叫 Lyria 懶加載生成...")
+                    self.generate_scene_bgm(theme.prompt, bgm_path)
+                else:
+                    print(f"DEBUG: 重複使用 BGM 主題 '{theme.name}'...")
+
                 raw_bgm = AudioSegment.from_mp3(bgm_path)
 
                 BGM_DB = -18  # BGM 混入音量（對白永遠主導）

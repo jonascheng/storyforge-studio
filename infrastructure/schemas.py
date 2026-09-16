@@ -11,12 +11,24 @@ class ScriptLineDTO(BaseModel):
     )
 
 
+class BgmThemeDTO(BaseModel):
+    name: str = Field(description="中文主題名稱，如「緊張」、「溫馨」等")
+    prompt: str = Field(description="給 Lyria 的背景音樂英文描述，純器樂、無人聲")
+
+
+class BgmMapDTO(BaseModel):
+    themes: dict[str, BgmThemeDTO] = Field(
+        default_factory=dict,
+        description="BGM 主題 ID (如 'tension', 'daily') 對應主題設定的字典",
+    )
+
+
 class SceneDTO(BaseModel):
     scene_id: int = Field(description="場景序號，從 1 開始遞增")
     title: str = Field(description="簡短中文場景標題，約 4-10 個字")
-    bgm_prompt: str | None = Field(
+    bgm_theme_id: str | None = Field(
         default=None,
-        description="給 Lyria 的場景背景音樂英文描述，純器樂、無人聲；若無需 BGM 則為 null",
+        description="從 BGM 主題表中挑選的 bgm_theme_id；若無需 BGM 則為 null",
     )
     lines: list[ScriptLineDTO] = Field(description="該場景的所有台詞行清單")
 

@@ -1,13 +1,27 @@
-from core.entities import Scene, Screenplay, Script, ScriptLine
+from core.entities import BgmMap, Scene, Screenplay, Script, ScriptLine
 from core.use_cases import StoryProcessor
 
 
 class MockDirector:
+    def define_bgm_themes(self, story_text: str) -> BgmMap:
+        return BgmMap()
+
     def break_down_script(self, story_text: str) -> Script:
         return Script(lines=[ScriptLine(role="旁白", emotion="平靜", text="這是一個測試故事。")])
 
+    def break_down_screenplay(self, story_text: str, bgm_map: BgmMap | None = None) -> Screenplay:
+        return Screenplay(scenes=[])
+
     def generate_audio(self, script: Script, output_path: str) -> None:
         pass
+
+    def generate_scene_audio(
+        self, scene: Scene, voice_map: dict, output_path: str, bgm_map: BgmMap | None = None
+    ) -> str:
+        return output_path
+
+    def suggest_safe_lines(self, original_text: str) -> list[str]:
+        return []
 
 
 class MockStorage:
@@ -37,6 +51,9 @@ def test_api_key_management():
 
 
 class MockDirectorV2:
+    def define_bgm_themes(self, story_text: str) -> BgmMap:
+        return BgmMap()
+
     def break_down_script(self, story_text: str):
         return Script(
             lines=[
@@ -46,7 +63,7 @@ class MockDirectorV2:
             ]
         )
 
-    def break_down_screenplay(self, story_text: str) -> Screenplay:
+    def break_down_screenplay(self, story_text: str, bgm_map: BgmMap | None = None) -> Screenplay:
         line = ScriptLine(role="旁白", emotion="平靜", text="測試。", voice_direction_note="[calm]")
         scene = Scene(scene_id=1, title="開場", lines=[line])
         return Screenplay(scenes=[scene])
@@ -54,8 +71,13 @@ class MockDirectorV2:
     def generate_audio(self, script, output_path: str) -> None:
         pass
 
-    def generate_scene_audio(self, scene: Scene, voice_map: dict, output_path: str) -> str:
+    def generate_scene_audio(
+        self, scene: Scene, voice_map: dict, output_path: str, bgm_map: BgmMap | None = None
+    ) -> str:
         return output_path
+
+    def suggest_safe_lines(self, original_text: str) -> list[str]:
+        return []
 
 
 class MockStorageV2:

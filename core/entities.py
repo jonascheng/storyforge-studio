@@ -13,12 +13,29 @@ class ScriptLine:
 
 
 @dataclass
+class BgmTheme:
+    name: str
+    prompt: str
+
+    def to_dict(self):
+        return asdict(self)
+
+
+@dataclass
+class BgmMap:
+    themes: dict[str, BgmTheme] = field(default_factory=dict)
+
+    def to_dict(self):
+        return {"themes": {k: v.to_dict() for k, v in self.themes.items()}}
+
+
+@dataclass
 class Scene:
     scene_id: int
     title: str
     lines: list[ScriptLine]
     audio_path: str | None = None
-    bgm_prompt: str | None = None  # AI 導演建議的場景背景音樂 prompt（給 Lyria 用）
+    bgm_theme_id: str | None = None  # AI 導演挑選的場景背景音樂主題 ID
 
     def to_dict(self):
         return {
@@ -26,7 +43,7 @@ class Scene:
             "title": self.title,
             "lines": [line.to_dict() for line in self.lines],
             "audio_path": self.audio_path,
-            "bgm_prompt": self.bgm_prompt,
+            "bgm_theme_id": self.bgm_theme_id,
         }
 
 

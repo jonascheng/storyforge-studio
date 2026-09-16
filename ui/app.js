@@ -31,6 +31,7 @@ document.addEventListener("DOMContentLoaded", () => {
     let currentScenes  = [];   // [{ scene_id, title, lines, audio_path }]
     let currentStory   = "";   // 故事名稱
     let audioReady     = {};   // { scene_id: true/false }
+    let currentBgmMap  = null; // { themes: { [theme_id]: { name, prompt } } }
 
     // ── Utilities ─────────────────────────────────────────────
     function showLoading(text, sub = "請稍候") {
@@ -133,6 +134,7 @@ document.addEventListener("DOMContentLoaded", () => {
             currentStory  = name;
             currentScenes = resp.scenes;
             audioReady    = {};
+            currentBgmMap = resp.bgm_map || null;
 
             storyNameBadge.textContent = "📖 " + name;
             renderScenes();
@@ -154,6 +156,7 @@ document.addEventListener("DOMContentLoaded", () => {
         storyInput.value = "";
         currentScenes = resp.scenes || [];
         audioReady    = {};
+        currentBgmMap = resp.bgm_map || null;
         if (resp.audio_ready_ids) {
             resp.audio_ready_ids.forEach(id => { audioReady[id] = true; });
         }
@@ -324,21 +327,46 @@ document.addEventListener("DOMContentLoaded", () => {
         const body = document.createElement("div");
         body.className = "scene-body";
 
-        // ── 場景氛圍音效欄位 ──────────────────────────────────
+        // ── 場景背景音樂 BGM 選單 ─────────────────────────────
         const sfxRow = document.createElement("div");
         sfxRow.className = "sfx-row";
-        sfxRow.innerHTML = `<label class="sfx-label">🎵 場景背景音樂 BGM（選填，留空則不生成）</label>`;
-        const sfxTextarea = document.createElement("textarea");
-        sfxTextarea.className = "sfx-prompt-input";
-        sfxTextarea.value = scene.bgm_prompt || "";
-        sfxTextarea.placeholder = "例：Gentle acoustic guitar, warm and calm, no vocals, instrumental only, subtle background music for audiobook";
-        sfxTextarea.rows = 2;
-        sfxTextarea.addEventListener("change", (e) => {
-            currentScenes[idx].bgm_prompt = e.target.value.trim() || null;
+        sfxRow.innerHTML = `<label class="sfx-label">🎵 場景背景音樂 BGM 主題（選填，留空則不生成）</label>`;
+        
+        const sfxSelect = document.createElement("select");
+        sfxSelect.className = "sfx-prompt-input"; // 延用樣式或在 css 中修改
+        sfxSelect.style.width = "100%";
+        sfxSelect.style.padding = "8px";
+        sfxSelect.style.marginTop = "6px";
+        sfxSelect.style.borderRadius = "6px";
+        sfxSelect.style.border = "1px solid var(--border-color)";
+        sfxSelect.style.background = "var(--bg-card)";
+        sfxSelect.style.color = "var(--text-main)";
+
+        // 加入空選項
+        const emptyOption = document.createElement("option");
+        emptyOption.value = "";
+        emptyOption.textContent = "無 (No BGM)";
+        sfxSelect.appendChild(emptyOption);
+
+        // 加入 BGM 主題選項
+        if (currentBgmMap && currentBgmMap.themes) {
+            for (const [themeId, themeData] of Object.entries(currentBgmMap.themes)) {
+                const opt = document.createElement("option");
+                opt.value = themeId;
+                opt.textContent = `${themeData.name} - ${themeData.prompt}`;
+                sfxSelect.appendChild(opt);
+            }
+        }
+
+        sfxSelect.value = scene.bgm_theme_id || "";
+        
+        sfxSelect.addEventListener("change", (e) => {
+            currentScenes[idx].bgm_theme_id = e.target.value || null;
             markSceneStale(scene.scene_id);
             api("save_screenplay_progress", currentStory, currentScenes);
         });
-        sfxRow.appendChild(sfxTextarea);
+        
+        sfxRow.appendChild(sfxSelect);
         body.appendChild(sfxRow);
 
         scene.lines.forEach((line, lineIdx) => {

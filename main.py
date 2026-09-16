@@ -6,6 +6,7 @@ import webview
 from core.entities import Scene, ScriptLine
 from core.use_cases import StoryProcessor
 from infrastructure.audio_mixer import AudioMixer
+from infrastructure.bgm_map_storage import BgmMapStorage
 from infrastructure.file_storage import LocalFileStorage
 from infrastructure.gemini_director import GeminiDirector
 from infrastructure.story_folder_storage import BASE_DIR, StoryFolderStorage
@@ -56,10 +57,16 @@ class StoryForgeApi:
     # ── 劇本拆解 ─────────────────────────────────────────────────
     def break_down_story(self, text: str, story_name: str):
         try:
-            screenplay = self.processor.break_down_screenplay(text)
-
             folder = self._get_storage(story_name)
             folder.ensure_folder()
+
+            # 1. 預先掃描定義 BGM 主題
+            bgm_map = self.processor.define_bgm_themes(text)
+            bgm_storage = BgmMapStorage(folder.folder_path)
+            bgm_storage.save(bgm_map)
+
+            # 2. 進行劇本拆解
+            screenplay = self.processor.break_down_screenplay(text, bgm_map=bgm_map)
 
             # 儲存角色聲音對應表（AI 建議 + 防撞處理）
             voice_map = screenplay.voice_map
@@ -118,6 +125,9 @@ class StoryForgeApi:
             vm_storage = VoiceMapStorage(folder.folder_path)
             voice_map = vm_storage.load()
 
+            bgm_storage = BgmMapStorage(folder.folder_path)
+            bgm_map = bgm_storage.load()
+
             audio_ready_ids = []
             for scene in scenes_data:
                 sid = scene.get("scene_id")
@@ -128,6 +138,7 @@ class StoryForgeApi:
                 "story_name": story_name,
                 "scenes": scenes_data,
                 "voice_map": voice_map,
+                "bgm_map": bgm_map.to_dict() if bgm_map else None,
                 "audio_ready_ids": audio_ready_ids,
                 "folder_path": folder.folder_path,
             }
@@ -162,11 +173,16 @@ class StoryForgeApi:
                 scene_id=scene_data.get("scene_id", 1),
                 title=scene_data.get("title", ""),
                 lines=lines,
-                bgm_prompt=scene_data.get("bgm_prompt"),  # 向後相容：舊資料無此欄預設 None
+                bgm_theme_id=scene_data.get("bgm_theme_id"),
             )
 
+            bgm_storage = BgmMapStorage(folder.folder_path)
+            bgm_map = bgm_storage.load()
+
             output_path = folder.scene_audio_path(scene.scene_id)
-            path = self.processor.generate_scene_audio(scene, voice_map, output_path)
+            path = self.processor.generate_scene_audio(
+                scene, voice_map, output_path, bgm_map=bgm_map
+            )
             return {"status": "ok", "path": path}
         except Exception as e:
             return self._handle_error("generate_scene_audio", e)
