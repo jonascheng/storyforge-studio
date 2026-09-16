@@ -423,7 +423,10 @@ document.addEventListener("DOMContentLoaded", () => {
         const status = document.getElementById(`status-${sceneId}`);
         const errorDiv = document.getElementById(`error-${sceneId}`);
 
-        btn.disabled = true;
+        document.querySelectorAll(".scene-regen-btn").forEach(b => b.disabled = true);
+        const mixBtn = document.getElementById("btnMixFinal");
+        if (mixBtn) mixBtn.disabled = true;
+
         btn.textContent = "處理中...";
         card.classList.add("generating");
         card.classList.remove("has-audio");
@@ -566,7 +569,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 errorDiv.style.display = "block";
             }
         } finally {
-            btn.disabled = false;
+            document.querySelectorAll(".scene-regen-btn").forEach(b => b.disabled = false);
+            const mixBtn = document.getElementById("btnMixFinal");
+            if (mixBtn) mixBtn.disabled = false;
+
             btn.textContent = "🎙 重新生成";
         }
     }
