@@ -142,12 +142,12 @@ class GeminiDirector(IDirector):
         self._require_key()
         prompt = f"""你是一位專業的有聲書導演。請將以下故事拆解為多個「場景」，並為所有出場角色挑選最合適的聲音演員。
 
-聲音演員庫（供角色配音挑選，每位角色盡量使用不同演員）：
-- 童趣活潑：Puck (歡快活潑), Leda (年輕稚嫩), Fenrir (激昂興奮), Zephyr (明亮清爽), Autonoe (明亮靈巧), Laomedeia (節奏輕快), Sadachbia (活力充沛)
-- 溫柔親切：Aoede (輕鬆愜意), Callirrhoe (隨和悠閒), Umbriel (柔和放鬆), Achernar (柔和細膩), Achird (親切友善), Vindemiatrix (溫柔慈愛), Sulafat (溫暖醇厚)
-- 成熟沉穩：Schedar (平穩勻稱), Charon (資訊知性), Gacrux (成熟穩健), Iapetus (清晰咬字), Erinome (清澈透亮), Algieba (絲滑沉著), Despina (優雅平和), Rasalgethi (知性詳實), Sadaltager (博學多聞), Zubenelgenubi (自然隨意)
-- 威嚴粗獷：Algenib (低沉沙啞怪獸), Orus (威嚴果決), Alnilam (剛正堅毅), Pulcherrima (直接果敢), Enceladus (神秘深邃)
-- 說書人（旁白）：固定使用 Kore
+聲音演員庫（供角色配音挑選，請依照角色性別挑選相符前綴的演員，每位角色盡量使用不同演員）：
+- 童趣活潑：[男] Puck (歡快活潑), [女] Leda (年輕稚嫩), [男] Fenrir (激昂興奮), [男] Zephyr (明亮清爽), [女] Autonoe (明亮靈巧), [女] Laomedeia (節奏輕快), [女] Sadachbia (活力充沛)
+- 溫柔親切：[女] Aoede (輕鬆愜意), [女] Callirrhoe (隨和悠閒), [男] Umbriel (柔和放鬆), [男] Achernar (柔和細膩), [女] Achird (親切友善), [女] Vindemiatrix (溫柔慈愛), [女] Sulafat (溫暖醇厚)
+- 成熟沉穩：[女] Schedar (平穩勻稱), [男] Charon (資訊知性), [男] Gacrux (成熟穩健), [男] Iapetus (清晰咬字), [女] Erinome (清澈透亮), [男] Algieba (絲滑沉著), [女] Despina (優雅平和), [男] Rasalgethi (知性詳實), [男] Sadaltager (博學多聞), [男] Zubenelgenubi (自然隨意)
+- 威嚴粗獷：[中性] Algenib (低沉沙啞怪獸), [男] Orus (威嚴果決), [男] Alnilam (剛正堅毅), [女] Pulcherrima (直接果敢), [男] Enceladus (神秘深邃)
+- 說書人（旁白）：固定使用 [中性] Kore
 
 每個場景代表一個情節單元（時間地點或情緒基調相對一致），每個場景最多 300 字。
 每個場景需要：

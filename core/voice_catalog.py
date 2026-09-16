@@ -7,46 +7,57 @@ class VoiceActor:
     tone: str
     description: str
     family: str
+    gender: str
 
 
 # Gemini TTS 官方支援的 30 位演員庫與特色說明
 VOICE_CATALOG: dict[str, VoiceActor] = {
     # ── 童趣活潑家族 (Youthful & Upbeat) ──
-    "Puck": VoiceActor("Puck", "Upbeat", "歡快活潑、充滿活力", "youthful_upbeat"),
-    "Leda": VoiceActor("Leda", "Youthful", "年輕稚嫩、清脆生動", "youthful_upbeat"),
-    "Fenrir": VoiceActor("Fenrir", "Excitable", "激昂興奮、情感強烈", "youthful_upbeat"),
-    "Zephyr": VoiceActor("Zephyr", "Bright", "明亮清爽、朝氣蓬勃", "youthful_upbeat"),
-    "Autonoe": VoiceActor("Autonoe", "Bright", "明亮靈巧、生動敏捷", "youthful_upbeat"),
-    "Laomedeia": VoiceActor("Laomedeia", "Upbeat", "節奏輕快、樂觀開朗", "youthful_upbeat"),
-    "Sadachbia": VoiceActor("Sadachbia", "Lively", "活力充沛、熱情躍動", "youthful_upbeat"),
+    "Puck": VoiceActor("Puck", "Upbeat", "歡快活潑、充滿活力", "youthful_upbeat", "男"),
+    "Leda": VoiceActor("Leda", "Youthful", "年輕稚嫩、清脆生動", "youthful_upbeat", "女"),
+    "Fenrir": VoiceActor("Fenrir", "Excitable", "激昂興奮、情感強烈", "youthful_upbeat", "男"),
+    "Zephyr": VoiceActor("Zephyr", "Bright", "明亮清爽、朝氣蓬勃", "youthful_upbeat", "男"),
+    "Autonoe": VoiceActor("Autonoe", "Bright", "明亮靈巧、生動敏捷", "youthful_upbeat", "女"),
+    "Laomedeia": VoiceActor("Laomedeia", "Upbeat", "節奏輕快、樂觀開朗", "youthful_upbeat", "女"),
+    "Sadachbia": VoiceActor("Sadachbia", "Lively", "活力充沛、熱情躍動", "youthful_upbeat", "女"),
     # ── 溫柔親切家族 (Warm & Gentle) ──
-    "Aoede": VoiceActor("Aoede", "Breezy", "微風般輕鬆愜意、自然舒暢", "warm_gentle"),
-    "Callirrhoe": VoiceActor("Callirrhoe", "Easy-going", "隨和悠閒、溫柔好親近", "warm_gentle"),
-    "Umbriel": VoiceActor("Umbriel", "Easy-going", "平易近人、柔和放鬆", "warm_gentle"),
-    "Achernar": VoiceActor("Achernar", "Soft", "柔和細膩、輕聲細語", "warm_gentle"),
-    "Achird": VoiceActor("Achird", "Friendly", "親切友善、溫暖陪伴", "warm_gentle"),
-    "Vindemiatrix": VoiceActor("Vindemiatrix", "Gentle", "溫柔慈愛、平撫人心", "warm_gentle"),
-    "Sulafat": VoiceActor("Sulafat", "Warm", "溫暖醇厚、富有包容感", "warm_gentle"),
+    "Aoede": VoiceActor("Aoede", "Breezy", "微風般輕鬆愜意、自然舒暢", "warm_gentle", "女"),
+    "Callirrhoe": VoiceActor(
+        "Callirrhoe", "Easy-going", "隨和悠閒、溫柔好親近", "warm_gentle", "女"
+    ),
+    "Umbriel": VoiceActor("Umbriel", "Easy-going", "平易近人、柔和放鬆", "warm_gentle", "男"),
+    "Achernar": VoiceActor("Achernar", "Soft", "柔和細膩、輕聲細語", "warm_gentle", "男"),
+    "Achird": VoiceActor("Achird", "Friendly", "親切友善、溫暖陪伴", "warm_gentle", "女"),
+    "Vindemiatrix": VoiceActor("Vindemiatrix", "Gentle", "溫柔慈愛、平撫人心", "warm_gentle", "女"),
+    "Sulafat": VoiceActor("Sulafat", "Warm", "溫暖醇厚、富有包容感", "warm_gentle", "女"),
     # ── 成熟沉穩家族 (Mature & Steady) ──
-    "Kore": VoiceActor("Kore", "Firm", "堅定沉穩、字句分明（經典說書人）", "mature_steady"),
-    "Schedar": VoiceActor("Schedar", "Even", "平穩勻稱、平心靜氣", "mature_steady"),
-    "Charon": VoiceActor("Charon", "Informative", "資訊條理、知性冷靜", "mature_steady"),
-    "Gacrux": VoiceActor("Gacrux", "Mature", "成熟穩健、長者智慧", "mature_steady"),
-    "Iapetus": VoiceActor("Iapetus", "Clear", "清晰乾淨、咬字精準", "mature_steady"),
-    "Erinome": VoiceActor("Erinome", "Clear", "清澈透亮、條理明晰", "mature_steady"),
-    "Algieba": VoiceActor("Algieba", "Smooth", "圓滑流暢、絲滑沉著", "mature_steady"),
-    "Despina": VoiceActor("Despina", "Smooth", "流暢優雅、平和從容", "mature_steady"),
-    "Rasalgethi": VoiceActor("Rasalgethi", "Informative", "知性詳實、解說風格", "mature_steady"),
-    "Sadaltager": VoiceActor("Sadaltager", "Knowledgeable", "博學多聞、篤定可信", "mature_steady"),
-    "Zubenelgenubi": VoiceActor("Zubenelgenubi", "Casual", "自然隨意、真實日常", "mature_steady"),
+    "Kore": VoiceActor("Kore", "Firm", "堅定沉穩、字句分明（經典說書人）", "mature_steady", "中性"),
+    "Schedar": VoiceActor("Schedar", "Even", "平穩勻稱、平心靜氣", "mature_steady", "女"),
+    "Charon": VoiceActor("Charon", "Informative", "資訊條理、知性冷靜", "mature_steady", "男"),
+    "Gacrux": VoiceActor("Gacrux", "Mature", "成熟穩健、長者智慧", "mature_steady", "男"),
+    "Iapetus": VoiceActor("Iapetus", "Clear", "清晰乾淨、咬字精準", "mature_steady", "男"),
+    "Erinome": VoiceActor("Erinome", "Clear", "清澈透亮、條理明晰", "mature_steady", "女"),
+    "Algieba": VoiceActor("Algieba", "Smooth", "圓滑流暢、絲滑沉著", "mature_steady", "男"),
+    "Despina": VoiceActor("Despina", "Smooth", "流暢優雅、平和從容", "mature_steady", "女"),
+    "Rasalgethi": VoiceActor(
+        "Rasalgethi", "Informative", "知性詳實、解說風格", "mature_steady", "男"
+    ),
+    "Sadaltager": VoiceActor(
+        "Sadaltager", "Knowledgeable", "博學多聞、篤定可信", "mature_steady", "男"
+    ),
+    "Zubenelgenubi": VoiceActor(
+        "Zubenelgenubi", "Casual", "自然隨意、真實日常", "mature_steady", "男"
+    ),
     # ── 威嚴粗獷家族 (Firm & Gravelly) ──
     "Algenib": VoiceActor(
-        "Algenib", "Gravelly", "低沉粗獷、沙啞有力（適合怪獸/威猛角色）", "firm_gravelly"
+        "Algenib", "Gravelly", "低沉粗獷、沙啞有力（適合怪獸/威猛角色）", "firm_gravelly", "中性"
     ),
-    "Orus": VoiceActor("Orus", "Firm", "威嚴果決、氣場強大", "firm_gravelly"),
-    "Alnilam": VoiceActor("Alnilam", "Firm", "堅毅深厚、剛正不阿", "firm_gravelly"),
-    "Pulcherrima": VoiceActor("Pulcherrima", "Forward", "直接果敢、具穿透力", "firm_gravelly"),
-    "Enceladus": VoiceActor("Enceladus", "Breathy", "氣息濃厚、神秘深邃", "firm_gravelly"),
+    "Orus": VoiceActor("Orus", "Firm", "威嚴果決、氣場強大", "firm_gravelly", "男"),
+    "Alnilam": VoiceActor("Alnilam", "Firm", "堅毅深厚、剛正不阿", "firm_gravelly", "男"),
+    "Pulcherrima": VoiceActor(
+        "Pulcherrima", "Forward", "直接果敢、具穿透力", "firm_gravelly", "女"
+    ),
+    "Enceladus": VoiceActor("Enceladus", "Breathy", "氣息濃厚、神秘深邃", "firm_gravelly", "男"),
 }
 
 VOICE_FAMILIES: dict[str, list[str]] = {
