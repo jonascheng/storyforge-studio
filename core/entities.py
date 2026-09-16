@@ -34,7 +34,6 @@ class Scene:
     scene_id: int
     title: str
     lines: list[ScriptLine]
-    audio_path: str | None = None
     bgm_theme_id: str | None = None  # AI 導演挑選的場景背景音樂主題 ID
 
     def to_dict(self):
@@ -42,7 +41,6 @@ class Scene:
             "scene_id": self.scene_id,
             "title": self.title,
             "lines": [line.to_dict() for line in self.lines],
-            "audio_path": self.audio_path,
             "bgm_theme_id": self.bgm_theme_id,
         }
 
