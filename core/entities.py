@@ -35,6 +35,7 @@ class Scene:
     title: str
     lines: list[ScriptLine]
     bgm_theme_id: str | None = None  # AI 導演挑選的場景背景音樂主題 ID
+    scene_description: str = ""  # 場景環境氛圍描述（英文），用於 TTS Audio Profile 的 Scene 區塊
 
     def to_dict(self):
         return {
@@ -42,13 +43,16 @@ class Scene:
             "title": self.title,
             "lines": [line.to_dict() for line in self.lines],
             "bgm_theme_id": self.bgm_theme_id,
+            "scene_description": self.scene_description,
         }
 
 
 @dataclass
 class Screenplay:
     scenes: list[Scene]
-    voice_map: dict[str, str] = field(default_factory=dict)
+    # voice_map 格式：{"角色名": {"voice": "VoiceName", "audio_profile": "English persona desc."}}
+    # 向後相容：舊格式 {"角色名": "VoiceName"} 在讀取時自動升級
+    voice_map: dict[str, dict] = field(default_factory=dict)
 
     def to_dict(self):
         return {

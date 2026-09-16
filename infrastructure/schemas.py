@@ -23,6 +23,19 @@ class BgmMapDTO(BaseModel):
     )
 
 
+class VoiceEntryDTO(BaseModel):
+    """角色聲音對應表的單一條目，含聲線名稱與固定 Audio Profile 描述。"""
+
+    voice: str = Field(description="聲音演員名稱，如 'Puck'、'Kore'")
+    audio_profile: str = Field(
+        default="",
+        description=(
+            "固定的英文角色人格描述，用於 TTS prompt 的 AUDIO PROFILE 區塊。"
+            "描述角色身份、原型、年齡、個性等，確保跨場景聲音一致。"
+        ),
+    )
+
+
 class SceneDTO(BaseModel):
     scene_id: int = Field(description="場景序號，從 1 開始遞增")
     title: str = Field(description="簡短中文場景標題，約 4-10 個字")
@@ -30,13 +43,24 @@ class SceneDTO(BaseModel):
         default=None,
         description="從 BGM 主題表中挑選的 bgm_theme_id；若無需 BGM 則為 null",
     )
+    scene_description: str = Field(
+        default="",
+        description=(
+            "場景環境氛圍的英文描述（2-4 句），包含地點、時間、氣氛等細節，"
+            "用於引導 TTS 模型的演技表現。"
+        ),
+    )
     lines: list[ScriptLineDTO] = Field(description="該場景的所有台詞行清單")
 
 
 class ScreenplayDTO(BaseModel):
-    voice_map: dict[str, str] = Field(
+    voice_map: dict[str, VoiceEntryDTO] = Field(
         default_factory=dict,
-        description="角色與聲音演員對應表，例如 {'旁白': 'Kore', '小明': 'Puck'}",
+        description=(
+            "角色與聲音演員對應表，每個條目包含聲線名稱與固定 Audio Profile 描述。"
+            "例如：{'旁白': {'voice': 'Kore', 'audio_profile': 'Calm narrator.'}, "
+            "'小明': {'voice': 'Puck', 'audio_profile': 'Young boy, age 8.'}}"
+        ),
     )
     scenes: list[SceneDTO] = Field(description="故事拆解後的所有場景清單")
 

@@ -195,21 +195,30 @@ BGM 主題清單（供場景配樂挑選）：
 每個場景需要：
 1. 一個 scene_id（從 1 開始）
 2. 一個簡短的中文場景標題（4-10 個字）
-3. 一個 bgm_theme_id（從上方定義好的 BGM 主題清單中挑選最適合此場景的 theme_id）。若場景簡短或無需 BGM，請設為 null。
-4. 所有台詞行，每行需有：role（角色名或「旁白」）、emotion（情緒）、text（台詞）、voice_direction_note（給 TTS 的英文聲音導演備註，例如 "[calm, slow]" 或 "speak with a trembling voice"）
+3. 一個 bgm_theme_id（從 BGM 主題清單中挑選；若無需 BGM 則為 null）
+4. 一個 scene_description（英文，2-4 句，描述場景的地點、時間、氛圍，例如："A cluttered living room late at night. The air is tense and silent."）
+5. 所有台詞行，每行需有：role（角色名或「旁白」）、emotion（情緒）、text（台詞）、voice_direction_note（英文聲音導演備註，如 "[calm, slow]"）
+
+另外，voice_map 的每個角色條目需包含：
+- voice：選取的聲音演員名稱
+- audio_profile：固定的英文角色描述（1-2 句），定義角色身份、原型、年齡與個性，確保跨場景聲音一致
+  - 旁白固定使用："Calm, gender-neutral audiobook narrator. Clear, steady, and expressive."
+  - 範例："Young boy, cheerful and curious, approximately 8 years old."
+  - 範例："Middle-aged father, warm and authoritative, with a gentle undertone."
 
 請嚴格以 JSON 格式回傳，格式範例如下：
 {{
   "voice_map": {{
-    "旁白": "Kore",
-    "小明": "Puck",
-    "怪獸": "Algenib"
+    "旁白": {{"voice": "Kore", "audio_profile": "Calm, gender-neutral audiobook narrator. Clear, steady, and expressive."}},
+    "小明": {{"voice": "Puck", "audio_profile": "Young boy, cheerful and curious, approximately 8 years old."}},
+    "怪獸": {{"voice": "Algenib", "audio_profile": "Fearsome mythical creature with a deep, gravelly roar."}}
   }},
   "scenes": [
     {{
       "scene_id": 1,
       "title": "書房中的爭吵",
       "bgm_theme_id": "tension",
+      "scene_description": "A dim study room at midnight. Books are scattered across the floor. The atmosphere is thick with unspoken anger.",
       "lines": [
         {{"role": "旁白", "emotion": "緊張", "text": "門突然被推開", "voice_direction_note": "[tense, urgent]"}},
         {{"role": "小明", "emotion": "憤怒", "text": "你為什麼騙我！", "voice_direction_note": "[angry, raised voice]"}}
@@ -227,15 +236,31 @@ BGM 主題清單（供場景配樂挑選）：
             try:
                 dto = ScreenplayDTO.model_validate_json(text)
                 raw_scenes = [s.model_dump() for s in dto.scenes]
-                raw_voice_map = dto.voice_map
+                # voice_map: dict[str, VoiceEntryDTO] → dict[str, dict]
+                raw_voice_map_dto = dto.voice_map  # {role: VoiceEntryDTO}
+                raw_voice_str_map = {role: entry.voice for role, entry in raw_voice_map_dto.items()}
+                audio_profiles = {
+                    role: entry.audio_profile for role, entry in raw_voice_map_dto.items()
+                }
             except Exception:
                 data = json.loads(text)
                 if isinstance(data, dict):
                     raw_scenes = data.get("scenes", [])
-                    raw_voice_map = data.get("voice_map", {})
+                    raw_vm_raw = data.get("voice_map", {})
+                    # Support both old str format and new dict format
+                    raw_voice_str_map = {}
+                    audio_profiles = {}
+                    for role, val in raw_vm_raw.items():
+                        if isinstance(val, str):
+                            raw_voice_str_map[role] = val
+                            audio_profiles[role] = ""
+                        elif isinstance(val, dict):
+                            raw_voice_str_map[role] = val.get("voice", "")
+                            audio_profiles[role] = val.get("audio_profile", "")
                 elif isinstance(data, list):
                     raw_scenes = data
-                    raw_voice_map = {}
+                    raw_voice_str_map = {}
+                    audio_profiles = {}
                 else:
                     raise ValueError("JSON 根元素必須是物件或陣列")
 
@@ -251,16 +276,25 @@ BGM 主題清單（供場景配樂挑選）：
                         title=item["title"],
                         lines=lines,
                         bgm_theme_id=item.get("bgm_theme_id"),
+                        scene_description=item.get("scene_description", ""),
                     )
                 )
 
             all_roles = list(role_counts.keys())
-            voice_map = resolve_voice_map(
-                raw_voice_map,
+            resolved_voice_names = resolve_voice_map(
+                raw_voice_str_map,
                 all_roles,
                 narrator_voice="Kore",
                 role_line_counts=role_counts,
             )
+            # 組合新格式 voice_map：{role: {"voice": str, "audio_profile": str}}
+            voice_map: dict[str, dict] = {
+                role: {
+                    "voice": voice_name,
+                    "audio_profile": audio_profiles.get(role, ""),
+                }
+                for role, voice_name in resolved_voice_names.items()
+            }
             return Screenplay(scenes=scenes, voice_map=voice_map)
         except Exception as e:
             raise ValueError(f"AI 導演回傳的格式有誤: {e}")
@@ -330,37 +364,80 @@ BGM 主題清單（供場景配樂挑選）：
             result = result.append(bgm_segment, crossfade=cf)
         return result[:target_ms]
 
-    def _build_tts_prompt(self, scene: Scene, line: ScriptLine) -> str:
-        """根據 Google 官方 TTS 提示指南，組裝結構化 prompt。
+    @staticmethod
+    def _get_voice_name(voice_map: dict, role: str, default: str = "Kore") -> str:
+        """從 voice_map（新格式物件或舊格式字串）中安全取出聲線名稱。"""
+        entry = voice_map.get(role)
+        if isinstance(entry, dict):
+            return entry.get("voice", default)
+        if isinstance(entry, str):
+            return entry
+        return default
 
-        結構：聲音設定檔 → 場景 → 導演附註 → 轉錄稿
-        這樣做可以讓 AI 清楚分辨「這是要唸的台詞」而非「有害的對話」，
-        大幅降低被安全分類器誤殺的機率。
+    @staticmethod
+    def _get_audio_profile(voice_map: dict, role: str) -> str:
+        """從 voice_map 取出角色的固定 Audio Profile 描述。"""
+        entry = voice_map.get(role)
+        if isinstance(entry, dict):
+            return entry.get("audio_profile", "")
+        return ""
+
+    def _build_tts_prompt(
+        self, scene: Scene, line: ScriptLine, voice_map: dict | None = None
+    ) -> str:
+        """依 Google 官方 TTS Prompting Structure 組裝結構化 prompt。
+
+        結構：AUDIO PROFILE → THE SCENE → DIRECTOR'S NOTES → TRANSCRIPT
+        - AUDIO PROFILE：固定的角色人格描述，跨場景保持一致
+        - THE SCENE：場景環境氛圍（地點、時間、情緒氛圍）
+        - DIRECTOR'S NOTES：演技指引（Style / Emotion / Pacing）
+        - TRANSCRIPT：inline audio tag + 台詞文字
         """
-        notes_parts = []
-        if line.emotion:
-            notes_parts.append(f"Emotion: {line.emotion}")
-        if line.voice_direction_note:
-            notes_parts.append(line.voice_direction_note.strip("[]"))
+        # Audio Profile：優先從 voice_map 取固定描述，fallback 到推導
+        if voice_map:
+            audio_profile = self._get_audio_profile(voice_map, line.role)
+        else:
+            audio_profile = ""
+        if not audio_profile:
+            audio_profile = self._infer_character_description(line.role, [line])
 
-        director_notes = ", ".join(notes_parts)
+        # Scene description
+        scene_desc = scene.scene_description.strip() if scene.scene_description else ""
+        if not scene_desc:
+            scene_desc = f"An audiobook scene: {scene.title}."
+
+        # Director's Notes — 演技指引（與 audio_profile 不同，這是即時指示）
+        style_parts = []
+        if line.voice_direction_note:
+            style_parts.append(line.voice_direction_note.strip("[]"))
         style_line = (
-            f"Style: {director_notes}"
-            if director_notes
-            else "Style: Natural, expressive reading for an audiobook."
+            "Style: " + ", ".join(style_parts)
+            if style_parts
+            else "Style: Natural, expressive audiobook reading."
         )
+        emotion_line = f"Emotion: {line.emotion}" if line.emotion else ""
+
+        director_notes_parts = [style_line]
+        if emotion_line:
+            director_notes_parts.append(emotion_line)
+        director_notes = "\n".join(director_notes_parts)
+
+        # Inline audio tag prefix for transcript
+        tag = line.voice_direction_note.strip() if line.voice_direction_note else ""
+        transcript = f"{tag} {line.text}".strip() if tag else line.text
 
         return f"""# AUDIO PROFILE: {line.role}
 ## "{scene.title}"
+{audio_profile}
 
 ## THE SCENE: {scene.title}
-這是一個有聲書的場景朗讀。請以角色「{line.role}」的身份，自然地朗讀以下轉錄稿。
+{scene_desc}
 
 ### DIRECTOR'S NOTES
-{style_line}
+{director_notes}
 
 #### TRANSCRIPT
-{line.text}
+{transcript}
 """
 
     def _decode_audio_data(self, audio_data: bytes, mime_type: str):
@@ -484,26 +561,36 @@ BGM 主題清單（供場景配樂挑選）：
         scene: Scene,
         group: list[ScriptLine],
         roles: list[str],
+        voice_map: dict | None = None,
     ) -> str:
-        """建構多角色合奏朗讀的提示詞，包含場景脈絡與角色特質引導。"""
-        char_descriptions = []
+        """依 Google 官方 TTS Prompting Structure 建構多角色合奏朗讀 prompt。"""
+        # Audio Profile per role
+        char_profiles = []
         for role in roles:
-            desc = self._infer_character_description(role, group)
-            char_descriptions.append(f"- {role}: {desc}")
+            if voice_map:
+                profile = self._get_audio_profile(voice_map, role)
+            else:
+                profile = ""
+            if not profile:
+                profile = self._infer_character_description(role, group)
+            char_profiles.append(f"- {role}: {profile}")
+        chars_header = "\n".join(char_profiles)
 
-        chars_header = "\n".join(char_descriptions)
+        # Scene description
+        scene_desc = scene.scene_description.strip() if scene.scene_description else ""
+        if not scene_desc:
+            scene_desc = f"An audiobook scene: {scene.title}."
 
+        # Transcript with inline tags
         transcript_lines = []
         for line in group:
-            notes_parts = []
-            if line.emotion:
-                notes_parts.append(line.emotion)
-            if line.voice_direction_note:
-                notes_parts.append(line.voice_direction_note.strip("[]"))
-            note_str = f"({', '.join(notes_parts)}) " if notes_parts else ""
-            transcript_lines.append(f"{line.role}: {note_str}{line.text}")
+            tag = line.voice_direction_note.strip() if line.voice_direction_note else ""
+            text_with_tag = f"{tag} {line.text}".strip() if tag else line.text
+            emotion_note = f"[Emotion: {line.emotion}] " if line.emotion else ""
+            transcript_lines.append(f"{line.role}: {emotion_note}{text_with_tag}")
         transcript = "\n".join(transcript_lines)
 
+        # Instructions
         if "旁白" in roles or "說書人" in roles:
             narrator_role = "旁白" if "旁白" in roles else "說書人"
             other_roles = [r for r in roles if r != narrator_role]
@@ -517,17 +604,21 @@ BGM 主題清單（供場景配樂挑選）：
             instructions = f"TTS the following conversation between {roles[0]} and {roles[1]}:\n"
 
         return (
-            f"# AUDIO SCENE: {scene.title}\n"
-            f"Characters:\n"
+            f"# AUDIO SCENE: {scene.title}\n\n"
+            f"## THE SCENE: {scene.title}\n"
+            f"{scene_desc}\n\n"
+            f"## CHARACTER PROFILES\n"
             f"{chars_header}\n\n"
-            f"{instructions}"
+            f"### DIRECTOR'S NOTES\n"
+            f"{instructions}\n"
+            f"#### TRANSCRIPT\n"
             f"{transcript}"
         )
 
     def _generate_single_line_audio(self, scene: Scene, line: ScriptLine, voice_map: dict):
         """單行錄音呼叫。"""
-        voice_name = voice_map.get(line.role, "Kore")
-        tts_prompt = self._build_tts_prompt(scene, line)
+        voice_name = self._get_voice_name(voice_map, line.role, default="Kore")
+        tts_prompt = self._build_tts_prompt(scene, line, voice_map=voice_map)
         print("\n" + "=" * 50)
         print("[DEBUG TTS - 單人朗讀 (Interactions API)]")
         print(f"  • 角色: {line.role}")
@@ -569,9 +660,9 @@ BGM 主題清單（供場景配樂挑選）：
     ):
         """雙角色合奏錄音呼叫。"""
         roles = list(dict.fromkeys(line.role for line in group))
-        tts_prompt = self._build_multi_speaker_prompt(scene, group, roles)
-        v1 = voice_map.get(roles[0], "Kore")
-        v2 = voice_map.get(roles[1], "Puck")
+        tts_prompt = self._build_multi_speaker_prompt(scene, group, roles, voice_map=voice_map)
+        v1 = self._get_voice_name(voice_map, roles[0], default="Kore")
+        v2 = self._get_voice_name(voice_map, roles[1], default="Puck")
         print("\n" + "=" * 50)
         print("[DEBUG TTS - 雙角色合奏 (Interactions API)]")
         print(f"  • 合奏角色: {roles[0]} & {roles[1]}")
@@ -617,24 +708,40 @@ BGM 主題清單（供場景配樂挑選）：
         scene: Scene,
         group: list[ScriptLine],
         role: str,
+        voice_map: dict | None = None,
     ) -> str:
-        """建構單人整組朗讀的提示詞（純旁白或單人獨白批次）。"""
-        desc = self._infer_character_description(role, group)
+        """依 Google 官方 TTS Prompting Structure 建構單人整組朗讀 prompt。"""
+        # Audio Profile
+        if voice_map:
+            audio_profile = self._get_audio_profile(voice_map, role)
+        else:
+            audio_profile = ""
+        if not audio_profile:
+            audio_profile = self._infer_character_description(role, group)
+
+        # Scene description
+        scene_desc = scene.scene_description.strip() if scene.scene_description else ""
+        if not scene_desc:
+            scene_desc = f"An audiobook scene: {scene.title}."
+
+        # Transcript with inline tags
         transcript_lines = []
         for line in group:
-            notes_parts = []
-            if line.emotion:
-                notes_parts.append(line.emotion)
-            if line.voice_direction_note:
-                notes_parts.append(line.voice_direction_note.strip("[]"))
-            note_str = f"({', '.join(notes_parts)}) " if notes_parts else ""
-            transcript_lines.append(f"{note_str}{line.text}")
+            tag = line.voice_direction_note.strip() if line.voice_direction_note else ""
+            text_with_tag = f"{tag} {line.text}".strip() if tag else line.text
+            emotion_note = f"[Emotion: {line.emotion}] " if line.emotion else ""
+            transcript_lines.append(f"{emotion_note}{text_with_tag}")
         transcript = "\n".join(transcript_lines)
 
         return (
-            f"# AUDIO SCENE: {scene.title}\n"
-            f"Character: {role} ({desc})\n\n"
-            f"Please read the following lines aloud with natural intonation and expression:\n"
+            f"# AUDIO PROFILE: {role}\n"
+            f'## "{scene.title}"\n\n'
+            f"## THE SCENE: {scene.title}\n"
+            f"{scene_desc}\n\n"
+            f"### DIRECTOR'S NOTES\n"
+            f"Style: {audio_profile}\n\n"
+            f"Please read the following lines aloud with natural intonation and expression:\n\n"
+            f"#### TRANSCRIPT\n"
             f"{transcript}"
         )
 
@@ -646,8 +753,10 @@ BGM 主題清單（供場景配樂挑選）：
     ):
         """單角色整組批次錄音呼叫。"""
         role = group[0].role
-        voice_name = voice_map.get(role, "Kore")
-        tts_prompt = self._build_single_speaker_group_prompt(scene, group, role)
+        voice_name = self._get_voice_name(voice_map, role, default="Kore")
+        tts_prompt = self._build_single_speaker_group_prompt(
+            scene, group, role, voice_map=voice_map
+        )
         print("\n" + "=" * 50)
         print("[DEBUG TTS - 單人整組朗讀 (Interactions API)]")
         print(f"  • 角色: {role} (共 {len(group)} 句)")

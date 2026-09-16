@@ -166,6 +166,7 @@ class StoryForgeApi:
             folder.ensure_folder()
 
             vm_storage = VoiceMapStorage(folder.folder_path)
+            # 載入完整 voice_map（含 audio_profile），讓 director 能提取 Audio Profile
             voice_map = vm_storage.load()
 
             lines = [ScriptLine(**ln) for ln in scene_data["lines"]]
@@ -174,6 +175,7 @@ class StoryForgeApi:
                 title=scene_data.get("title", ""),
                 lines=lines,
                 bgm_theme_id=scene_data.get("bgm_theme_id"),
+                scene_description=scene_data.get("scene_description", ""),
             )
 
             bgm_storage = BgmMapStorage(folder.folder_path)

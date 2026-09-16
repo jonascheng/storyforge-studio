@@ -58,10 +58,11 @@ def test_break_down_screenplay_strips_markdown_fences():
     with patch.object(director, "_call_director_model", return_value=fenced):
         screenplay = director.break_down_screenplay("故事")
     assert len(screenplay.scenes) == 2
-    # 向後相容舊陣列回傳：自動依角色補齊 voice_map
+    # 向後相容舊陣列回傳：自動依角色補齊 voice_map（新格式 dict）
     assert "旁白" in screenplay.voice_map
     assert "小明" in screenplay.voice_map
-    assert screenplay.voice_map["旁白"] == "Kore"
+    assert screenplay.voice_map["旁白"]["voice"] == "Kore"
+    assert "audio_profile" in screenplay.voice_map["旁白"]
 
 
 def test_break_down_screenplay_parses_dict_with_voice_map():
@@ -100,9 +101,9 @@ def test_break_down_screenplay_parses_dict_with_voice_map():
     with patch.object(director, "_call_director_model", return_value=response_payload):
         screenplay = director.break_down_screenplay("故事")
     assert len(screenplay.scenes) == 1
-    assert screenplay.voice_map["旁白"] == "Kore"
-    assert screenplay.voice_map["小明"] == "Puck"
-    assert screenplay.voice_map["怪獸"] == "Algenib"
+    assert screenplay.voice_map["旁白"]["voice"] == "Kore"
+    assert screenplay.voice_map["小明"]["voice"] == "Puck"
+    assert screenplay.voice_map["怪獸"]["voice"] == "Algenib"
 
 
 def test_break_down_screenplay_raises_on_bad_json():
@@ -320,7 +321,9 @@ def test_infer_character_description_for_narrator():
 
 def test_build_multi_speaker_prompt_with_narrator():
     director = GeminiDirector(api_key="fake-key")
-    scene = Scene(scene_id=1, title="森林探險", lines=[])
+    scene = Scene(
+        scene_id=1, title="森林探險", lines=[], scene_description="A dense forest at dusk."
+    )
     group = [
         ScriptLine(role="旁白", emotion="", text="遠處傳來聲音。", voice_direction_note=""),
         ScriptLine(role="小明", emotion="好奇", text="是誰在那裡？", voice_direction_note=""),
@@ -335,7 +338,9 @@ def test_build_multi_speaker_prompt_with_narrator():
 
 def test_build_multi_speaker_prompt():
     director = GeminiDirector(api_key="fake-key")
-    scene = Scene(scene_id=1, title="神秘森林", lines=[])
+    scene = Scene(
+        scene_id=1, title="神秘森林", lines=[], scene_description="A dark forest at midnight."
+    )
     group = [
         ScriptLine(role="爸爸", emotion="沉穩", text="快看！", voice_direction_note="[excited]"),
         ScriptLine(
@@ -346,7 +351,7 @@ def test_build_multi_speaker_prompt():
     prompt = director._build_multi_speaker_prompt(scene, group, roles)
 
     assert "神秘森林" in prompt
-    assert "Characters:" in prompt
+    assert "CHARACTER PROFILES" in prompt
     assert "爸爸" in prompt
     assert "小美" in prompt
     assert "Adult male father" in prompt
@@ -527,7 +532,9 @@ def test_generate_scene_audio_single_speaker_group_falls_back_on_failure():
 
 def test_build_tts_prompt_includes_emotion():
     director = GeminiDirector(api_key="fake-key")
-    scene = Scene(scene_id=1, title="房間裡的對話", lines=[])
+    scene = Scene(
+        scene_id=1, title="房間裡的對話", lines=[], scene_description="A tense room at night."
+    )
     line = ScriptLine(
         role="小明",
         emotion="憤怒",
@@ -541,9 +548,42 @@ def test_build_tts_prompt_includes_emotion():
     assert "你為什麼騙我！" in prompt
 
 
+def test_build_tts_prompt_includes_audio_profile_from_voice_map():
+    """Audio Profile 優先從 voice_map 取固定描述。"""
+    director = GeminiDirector(api_key="fake-key")
+    scene = Scene(scene_id=1, title="故事開場", lines=[], scene_description="A foggy morning.")
+    line = ScriptLine(role="小明", emotion="開心", text="早安！", voice_direction_note="[cheerful]")
+    voice_map = {
+        "小明": {"voice": "Puck", "audio_profile": "Young boy, age 8, cheerful and curious."},
+    }
+    prompt = director._build_tts_prompt(scene, line, voice_map=voice_map)
+    assert "AUDIO PROFILE: 小明" in prompt
+    assert "Young boy, age 8, cheerful and curious." in prompt
+    assert "A foggy morning." in prompt
+    assert "早安！" in prompt
+
+
+def test_build_tts_prompt_inline_tag_prefix():
+    """voice_direction_note 應以 inline tag 形式出現在 TRANSCRIPT 台詞前。"""
+    director = GeminiDirector(api_key="fake-key")
+    scene = Scene(scene_id=1, title="夜晚獨白", lines=[])
+    line = ScriptLine(role="旁白", emotion="", text="夜深人靜。", voice_direction_note="[whispers]")
+    prompt = director._build_tts_prompt(scene, line)
+    assert "[whispers] 夜深人靜。" in prompt
+
+
+def test_build_tts_prompt_scene_description_fallback():
+    """scene_description 為空時，應使用 fallback 描述。"""
+    director = GeminiDirector(api_key="fake-key")
+    scene = Scene(scene_id=1, title="神秘房間", lines=[])  # no scene_description
+    line = ScriptLine(role="旁白", emotion="", text="門打開了。", voice_direction_note="")
+    prompt = director._build_tts_prompt(scene, line)
+    assert "An audiobook scene: 神秘房間." in prompt
+
+
 def test_build_multi_speaker_prompt_includes_emotion():
     director = GeminiDirector(api_key="fake-key")
-    scene = Scene(scene_id=1, title="神秘森林", lines=[])
+    scene = Scene(scene_id=1, title="神秘森林", lines=[], scene_description="A dark forest.")
     group = [
         ScriptLine(role="爸爸", emotion="沉穩", text="快看！", voice_direction_note="[excited]"),
         ScriptLine(
@@ -552,8 +592,11 @@ def test_build_multi_speaker_prompt_includes_emotion():
     ]
     roles = ["爸爸", "小美"]
     prompt = director._build_multi_speaker_prompt(scene, group, roles)
-    assert "爸爸: (沉穩, excited) 快看！" in prompt
-    assert "小美: (害怕, trembling) 那是怪獸嗎？" in prompt
+    # 新格式：emotion 以 [Emotion: xxx] 形式嵌入台詞前
+    assert "[Emotion: 沉穩]" in prompt
+    assert "[Emotion: 害怕]" in prompt
+    assert "[excited] 快看！" in prompt
+    assert "[trembling] 那是怪獸嗎？" in prompt
 
 
 def test_decode_audio_data_handles_lowercase_l16_without_ffmpeg_from_file():
