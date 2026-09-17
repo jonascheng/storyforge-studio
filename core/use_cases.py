@@ -1,9 +1,13 @@
 from typing import Protocol
 
-from core.entities import BgmMap, Scene, Screenplay, Script
+from core.entities import BgmMap, Scene, Screenplay, Script, StoryScript
 
 
 class IDirector(Protocol):
+    def expand_story_script(self, short_input: str) -> StoryScript: ...
+
+    def tweak_story_script(self, current_script: StoryScript, instruction: str) -> StoryScript: ...
+
     def define_bgm_themes(self, story_text: str) -> BgmMap: ...
 
     def break_down_script(self, story_text: str) -> Script: ...
@@ -39,6 +43,12 @@ class StoryProcessor:
     def __init__(self, director: IDirector, storage: IStorage):
         self.director = director
         self.storage = storage
+
+    def expand_story_script(self, short_input: str) -> StoryScript:
+        return self.director.expand_story_script(short_input)
+
+    def tweak_story_script(self, current_script: StoryScript, instruction: str) -> StoryScript:
+        return self.director.tweak_story_script(current_script, instruction)
 
     def define_bgm_themes(self, story_text: str) -> BgmMap:
         return self.director.define_bgm_themes(story_text)

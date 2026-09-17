@@ -10,8 +10,27 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const storyInput       = document.getElementById("storyInput");
     const storyNameInput   = document.getElementById("storyNameInput");
+    const btnExpandStory   = document.getElementById("btnExpandStory");
     const btnBreakdown     = document.getElementById("btnBreakdown");
     const btnLoadScreenplay = document.getElementById("btnLoadScreenplay");
+
+    const step1Section     = document.getElementById("step1Section");
+    const storyScriptSection = document.getElementById("storyScriptSection");
+    const storyScriptTitleBadge = document.getElementById("storyScriptTitleBadge");
+    const storyScriptText  = document.getElementById("storyScriptText");
+    const charactersContainer = document.getElementById("charactersContainer");
+    const btnAddCharacter  = document.getElementById("btnAddCharacter");
+    const storyScriptWorldview = document.getElementById("storyScriptWorldview");
+    const tweakInput       = document.getElementById("tweakInput");
+    const btnTweakStory    = document.getElementById("btnTweakStory");
+    const btnUndoTweak     = document.getElementById("btnUndoTweak");
+
+    const zoomModal        = document.getElementById("zoomModal");
+    const zoomModalTitle   = document.getElementById("zoomModalTitle");
+    const zoomModalTextarea= document.getElementById("zoomModalTextarea");
+    const btnCloseZoom     = document.getElementById("btnCloseZoom");
+    const btnSaveZoom      = document.getElementById("btnSaveZoom");
+    let zoomTargetId       = null;
 
     const storySelectorModal   = document.getElementById("storySelectorModal");
     const storyListContainer   = document.getElementById("storyListContainer");
@@ -29,6 +48,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const toast            = document.getElementById("toast");
 
     // ── State ─────────────────────────────────────────────────
+    let currentStoryScript = null; // { title, story_text, character_cards, worldview_rules }
+    let currentStoryScriptVersion = -1; // 用於 undo
     let currentScenes  = [];   // [{ scene_id, title, lines, audio_path }]
     let currentStory   = "";   // 故事名稱
     let audioReady     = {};   // { scene_id: true/false }
@@ -115,6 +136,105 @@ document.addEventListener("DOMContentLoaded", () => {
         return Promise.resolve({ error: "pywebview not available" });
     }
 
+    // ── Zoom Modal ────────────────────────────────────────────
+    document.querySelectorAll(".btn-zoom").forEach(btn => {
+        btn.addEventListener("click", () => {
+            zoomTargetId = btn.getAttribute("data-target");
+            const title = btn.getAttribute("data-title");
+            zoomModalTitle.textContent = "編輯 " + title;
+            const targetEl = document.getElementById(zoomTargetId);
+            zoomModalTextarea.value = targetEl ? targetEl.value : "";
+            zoomModal.classList.remove("hidden");
+            zoomModalTextarea.focus();
+        });
+    });
+
+    btnCloseZoom.addEventListener("click", () => {
+        zoomModal.classList.add("hidden");
+        zoomTargetId = null;
+    });
+
+    btnSaveZoom.addEventListener("click", () => {
+        if (zoomTargetId) {
+            const targetEl = document.getElementById(zoomTargetId);
+            if (targetEl) {
+                targetEl.value = zoomModalTextarea.value;
+                saveCurrentStoryScript(); // Trigger save
+            }
+        }
+        zoomModal.classList.add("hidden");
+        zoomTargetId = null;
+    });
+
+    // ── Character Cards ───────────────────────────────────────
+    function renderCharacterCards() {
+        charactersContainer.innerHTML = "";
+        const cards = currentStoryScript.character_cards || [];
+        cards.forEach((char, idx) => {
+            const card = document.createElement("div");
+            card.className = "character-card";
+            card.innerHTML = `
+                <div class="card-header">
+                    <div style="font-weight: 600; font-size: 14px;">角色 ${idx + 1}</div>
+                    <button class="btn-delete-char" title="刪除此角色">🗑 刪除</button>
+                </div>
+                <div class="row">
+                    <div class="col">
+                        <label style="font-size: 12px; color: var(--text-muted);">角色名稱</label>
+                        <input type="text" class="char-name" value="${char.name || ""}" placeholder="例如：小明">
+                    </div>
+                    <div class="col">
+                        <label style="font-size: 12px; color: var(--text-muted);">聲音類型</label>
+                        <input type="text" class="char-voice" value="${char.voice_type || ""}" placeholder="例如：童趣活潑[男]">
+                    </div>
+                </div>
+                <div>
+                    <label style="font-size: 12px; color: var(--text-muted);">角色背景、個性與特徵設定</label>
+                    <textarea class="char-desc" placeholder="例如：一個充滿好奇心的八歲男孩...">${char.desc || ""}</textarea>
+                </div>
+            `;
+
+            // Auto save on input
+            card.querySelectorAll("input, textarea").forEach(el => {
+                el.addEventListener("input", () => {
+                    if (saveTimeout) clearTimeout(saveTimeout);
+                    saveTimeout = setTimeout(saveCurrentStoryScript, 1000);
+                });
+            });
+
+            card.querySelector(".btn-delete-char").addEventListener("click", () => {
+                if (confirm("確定要刪除這個角色嗎？")) {
+                    card.remove();
+                    saveCurrentStoryScript();
+                }
+            });
+
+            charactersContainer.appendChild(card);
+        });
+    }
+
+    function getCharacterCardsData() {
+        const cards = [];
+        charactersContainer.querySelectorAll(".character-card").forEach(card => {
+            cards.push({
+                name: card.querySelector(".char-name").value,
+                voice_type: card.querySelector(".char-voice").value,
+                desc: card.querySelector(".char-desc").value
+            });
+        });
+        return cards;
+    }
+
+    btnAddCharacter.addEventListener("click", () => {
+        if (!currentStoryScript) currentStoryScript = { character_cards: [] };
+        if (!currentStoryScript.character_cards) currentStoryScript.character_cards = [];
+        // Instead of re-rendering all, just append one by appending to data array and rendering
+        currentStoryScript.character_cards = getCharacterCardsData(); // sync first
+        currentStoryScript.character_cards.push({ name: "", voice_type: "", desc: "" });
+        renderCharacterCards();
+        saveCurrentStoryScript();
+    });
+
     // ── Settings ──────────────────────────────────────────────
     btnSettings.addEventListener("click", async () => {
         const settings = await api("get_settings");
@@ -137,35 +257,151 @@ document.addEventListener("DOMContentLoaded", () => {
         showToast("設定已儲存 ✓");
     });
 
-    // ── Step 1: Breakdown ─────────────────────────────────────
-    btnBreakdown.addEventListener("click", async () => {
+    // ── Step 1: 故事想法 -> AI 編劇 ───────────────────────────
+    btnExpandStory.addEventListener("click", async () => {
         const text = storyInput.value.trim();
-        const name = storyNameInput.value.trim();
+        if (!text) { showToast("請先輸入故事想法！", "error"); return; }
 
-        if (!text) { showToast("請先貼上故事！", "error"); return; }
-        if (!name) { showToast("請輸入故事名稱！", "error"); return; }
-
-        setBtnLoading(btnBreakdown, true, "分析中...");
-        showLoading("AI 導演正在閱讀故事…", "正在拆解場景與角色，請稍候");
+        setBtnLoading(btnExpandStory, true, "撰寫中...");
+        showLoading("AI 編劇正在撰寫故事...", "正在設計角色與世界觀，請稍候");
 
         try {
-            const resp = await api("break_down_story", text, name);
+            const resp = await api("expand_story", text);
             if (resp.error) { showToast("錯誤：" + resp.error, "error"); return; }
 
-            currentStory  = name;
+            currentStoryScript = resp.story_script;
+            currentStory = resp.story_name;
+            await refreshStoryHistory();
+            
+            showStoryScriptSection();
+            showToast("劇本初稿撰寫完成 ✓");
+        } catch (e) {
+            showToast("發生錯誤：" + e, "error");
+        } finally {
+            setBtnLoading(btnExpandStory, false, "✍️ AI 撰寫劇本");
+            hideLoading();
+        }
+    });
+
+    async function refreshStoryHistory() {
+        if (!currentStory) return;
+        const resp = await api("get_story_history", currentStory);
+        if (resp && resp.history) {
+            currentStoryScriptVersion = resp.history.length - 1;
+            btnUndoTweak.disabled = currentStoryScriptVersion <= 0;
+        }
+    }
+
+    function showStoryScriptSection() {
+        if (!currentStoryScript) return;
+        step1Section.classList.add("hidden");
+        scenesSection.classList.add("hidden");
+        storyScriptSection.classList.remove("hidden");
+
+        storyScriptTitleBadge.textContent = "📖 " + currentStoryScript.title;
+        storyScriptText.value = currentStoryScript.story_text || "";
+        renderCharacterCards();
+        storyScriptWorldview.value = currentStoryScript.worldview_rules || "";
+        
+        storyScriptSection.scrollIntoView({ behavior: "smooth" });
+    }
+
+    async function saveCurrentStoryScript() {
+        if (!currentStoryScript || !currentStory) return;
+        currentStoryScript.story_text = storyScriptText.value;
+        currentStoryScript.character_cards = getCharacterCardsData();
+        currentStoryScript.worldview_rules = storyScriptWorldview.value;
+        await api("save_story_script", currentStory, currentStoryScript);
+        await refreshStoryHistory();
+    }
+
+    let saveTimeout = null;
+    [storyScriptText, storyScriptWorldview].forEach(el => {
+        el.addEventListener("input", () => {
+            if (saveTimeout) clearTimeout(saveTimeout);
+            saveTimeout = setTimeout(saveCurrentStoryScript, 1000);
+        });
+    });
+
+    // ── Step 1.5: 魔法重寫與復原 ──────────────────────────────
+    btnTweakStory.addEventListener("click", async () => {
+        const instruction = tweakInput.value.trim();
+        if (!instruction) { showToast("請輸入修改指令！", "error"); return; }
+        if (!currentStoryScript) return;
+
+        setBtnLoading(btnTweakStory, true, "重寫中...");
+        showLoading("AI 編劇正在修改故事...", "請稍候");
+
+        try {
+            // 先確保把當前的文字存入變數
+            currentStoryScript.story_text = storyScriptText.value;
+            currentStoryScript.worldview_rules = storyScriptWorldview.value;
+            currentStoryScript.character_cards = getCharacterCardsData();
+
+            const resp = await api("tweak_story", currentStory, currentStoryScript, instruction);
+            if (resp.error) { showToast("錯誤：" + resp.error, "error"); return; }
+
+            currentStoryScript = resp.story_script;
+            tweakInput.value = "";
+            showStoryScriptSection();
+            await refreshStoryHistory();
+            showToast("劇本修改完成 ✓");
+        } catch (e) {
+            showToast("發生錯誤：" + e, "error");
+        } finally {
+            setBtnLoading(btnTweakStory, false, "✨ 讓 AI 重寫");
+            hideLoading();
+        }
+    });
+
+    btnUndoTweak.addEventListener("click", async () => {
+        if (currentStoryScriptVersion <= 0 || !currentStory) return;
+        
+        btnUndoTweak.disabled = true;
+        try {
+            const resp = await api("restore_story_version", currentStory, currentStoryScriptVersion - 1);
+            if (resp.error) { showToast("錯誤：" + resp.error, "error"); return; }
+            
+            currentStoryScript = resp.story_script;
+            showStoryScriptSection();
+            await refreshStoryHistory();
+            showToast("已復原至上一個版本 ✓");
+        } catch (e) {
+            showToast("復原失敗：" + e, "error");
+        }
+    });
+
+    // ── Step 2: 故事劇本 -> 廣播劇本 (Breakdown) ──────────────
+    btnBreakdown.addEventListener("click", async () => {
+        if (!currentStoryScript) { showToast("無故事劇本可分析", "error"); return; }
+
+        setBtnLoading(btnBreakdown, true, "分析中...");
+        showLoading("AI 導演正在轉譯廣播劇...", "正在分配台詞與角色，請稍候");
+
+        try {
+            // 確保最新編輯已存入 currentStoryScript
+            currentStoryScript.story_text = storyScriptText.value;
+            currentStoryScript.worldview_rules = storyScriptWorldview.value;
+            currentStoryScript.character_cards = getCharacterCardsData();
+
+            const resp = await api("break_down_story", currentStoryScript, currentStory);
+            if (resp.error) { showToast("錯誤：" + resp.error, "error"); return; }
+
             currentScenes = resp.scenes;
             audioReady    = {};
             currentBgmMap = resp.bgm_map || null;
 
-            storyNameBadge.textContent = "📖 " + name;
+            storyNameBadge.textContent = "📖 " + currentStory;
             renderScenes();
+            
+            storyScriptSection.classList.add("hidden");
             scenesSection.classList.remove("hidden");
             scenesSection.scrollIntoView({ behavior: "smooth" });
-            showToast(`拆解完成！共 ${currentScenes.length} 個場景 ✓`);
+            showToast(`轉換廣播劇完成！共 ${currentScenes.length} 個場景 ✓`);
         } catch (e) {
             showToast("發生錯誤：" + e, "error");
         } finally {
-            setBtnLoading(btnBreakdown, false, "🎬 AI 分析劇本");
+            setBtnLoading(btnBreakdown, false, "🎬 確認劇本，產生廣播劇");
             hideLoading();
         }
     });
@@ -175,6 +411,9 @@ document.addEventListener("DOMContentLoaded", () => {
         currentStory  = resp.story_name || name;
         storyNameInput.value = currentStory;
         storyInput.value = "";
+        
+        currentStoryScript = resp.story_script || null;
+        
         currentScenes = resp.scenes || [];
         audioReady    = {};
         currentBgmMap = resp.bgm_map || null;
@@ -182,11 +421,24 @@ document.addEventListener("DOMContentLoaded", () => {
             resp.audio_ready_ids.forEach(id => { audioReady[id] = true; });
         }
 
-        storyNameBadge.textContent = "📖 " + currentStory;
-        renderScenes();
-        scenesSection.classList.remove("hidden");
-        scenesSection.scrollIntoView({ behavior: "smooth" });
-        showToast(`成功載入故事「${currentStory}」！共 ${currentScenes.length} 個場景 ✓`);
+        refreshStoryHistory();
+
+        if (currentScenes && currentScenes.length > 0) {
+            // 已有廣播劇本
+            storyNameBadge.textContent = "📖 " + currentStory;
+            renderScenes();
+            step1Section.classList.add("hidden");
+            storyScriptSection.classList.add("hidden");
+            scenesSection.classList.remove("hidden");
+            scenesSection.scrollIntoView({ behavior: "smooth" });
+            showToast(`成功載入專案「${currentStory}」！共 ${currentScenes.length} 個場景 ✓`);
+        } else if (currentStoryScript) {
+            // 只有故事劇本
+            showStoryScriptSection();
+            showToast(`成功載入專案「${currentStory}」的劇本草稿 ✓`);
+        } else {
+            showToast("此專案沒有劇本紀錄", "error");
+        }
     }
 
     // ── Step 1.5: Story Selector Modal & Folder Picker ────────
@@ -440,31 +692,36 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // Wire play button
         if (isReady) {
-            document.getElementById(`play-${scene.scene_id}`).addEventListener("click", async (e) => {
-                e.stopPropagation();
-                if (playingSceneId === scene.scene_id) {
-                    stopCurrentAudio();
-                    return;
-                }
-                stopCurrentAudio();
-                const btn = e.currentTarget;
-                btn.textContent = "⏳";
-                const resp = await api("get_scene_audio_base64", scene.scene_id, currentStory);
-                if (resp.error) {
-                    showToast(resp.error, "error");
-                    btn.textContent = "▶️";
-                    return;
-                }
-                const audio = new Audio("data:audio/mp3;base64," + resp.base64);
-                audio.onended = () => {
-                    if (playingSceneId === scene.scene_id) stopCurrentAudio();
-                };
-                currentAudio = audio;
-                playingSceneId = scene.scene_id;
-                audio.play();
-                btn.textContent = "⏹️";
-            });
+            bindPlayButton(scene.scene_id);
         }
+    }
+
+    function bindPlayButton(sceneId) {
+        const btn = document.getElementById(`play-${sceneId}`);
+        if (!btn) return;
+        btn.addEventListener("click", async (e) => {
+            e.stopPropagation();
+            if (playingSceneId === sceneId) {
+                stopCurrentAudio();
+                return;
+            }
+            stopCurrentAudio();
+            btn.textContent = "⏳";
+            const resp = await api("get_scene_audio_base64", sceneId, currentStory);
+            if (resp.error) {
+                showToast(resp.error, "error");
+                btn.textContent = "▶️";
+                return;
+            }
+            const audio = new Audio("data:audio/mp3;base64," + resp.base64);
+            audio.onended = () => {
+                if (playingSceneId === sceneId) stopCurrentAudio();
+            };
+            currentAudio = audio;
+            playingSceneId = sceneId;
+            audio.play();
+            btn.textContent = "⏹️";
+        });
     }
 
     // ── Regen single scene ────────────────────────────────────
@@ -580,6 +837,13 @@ document.addEventListener("DOMContentLoaded", () => {
                 card.classList.add("has-audio");
                 status.className = "audio-status done";
                 status.textContent = "✓ 已完成";
+                
+                if (!document.getElementById(`play-${sceneId}`)) {
+                    const playBtnHtml = `<button class="scene-play-btn" id="play-${sceneId}" title="試聽此場景">▶️</button>`;
+                    status.insertAdjacentHTML("afterend", playBtnHtml);
+                    bindPlayButton(sceneId);
+                }
+
                 showToast(`場景 ${sceneId}《${currentScenes[idx].title}》語音生成完畢 ✓`);
             }
         } catch (e) {
@@ -676,6 +940,12 @@ document.addEventListener("DOMContentLoaded", () => {
                             if(status) {
                                 status.className = "audio-status done";
                                 status.textContent = "✓ 已完成";
+                                
+                                if (!document.getElementById(`play-${sc.scene_id}`)) {
+                                    const playBtnHtml = `<button class="scene-play-btn" id="play-${sc.scene_id}" title="試聽此場景">▶️</button>`;
+                                    status.insertAdjacentHTML("afterend", playBtnHtml);
+                                    bindPlayButton(sc.scene_id);
+                                }
                             }
                         }
                     }

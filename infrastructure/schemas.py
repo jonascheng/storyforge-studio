@@ -67,3 +67,20 @@ class ScreenplayDTO(BaseModel):
 
 class SafeLinesDTO(BaseModel):
     suggestions: list[str] = Field(description="3 個意思相近但語氣溫和、安全的替代台詞字串清單")
+
+
+class CharacterCardDTO(BaseModel):
+    name: str = Field(description="角色名稱，如「旁白」、「小明」")
+    desc: str = Field(description="角色背景、個性與特徵設定")
+    voice_type: str = Field(
+        description="建議的聲音類型，例如：童趣活潑[女]、威嚴粗獷[男]、旁白[中性]"
+    )
+
+
+class StoryScriptDTO(BaseModel):
+    title: str = Field(description="故事標題")
+    story_text: str = Field(
+        description="擴充後的完整故事大綱與情節描述，提供足夠細節供後續轉為廣播劇"
+    )
+    character_cards: list[CharacterCardDTO] = Field(description="故事中的角色設定卡")
+    worldview_rules: str = Field(description="故事發生的世界觀背景與特殊規則設定")

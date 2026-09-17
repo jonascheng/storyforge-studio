@@ -22,6 +22,9 @@ class StoryFolderStorage:
     def screenplay_path(self) -> str:
         return os.path.join(self.folder_path, "screenplay.json")
 
+    def story_script_path(self) -> str:
+        return os.path.join(self.folder_path, "story_script.json")
+
     def save_screenplay(self, scenes_data: list) -> None:
         with open(self.screenplay_path(), "w", encoding="utf-8") as f:
             json.dump(scenes_data, f, ensure_ascii=False, indent=2)
@@ -35,6 +38,44 @@ class StoryFolderStorage:
                 return json.load(f)
             except json.JSONDecodeError:
                 return []
+
+    def save_story_script(self, data: dict) -> None:
+        """Saves a new version of the story script to history."""
+        history = self.load_story_history()
+        history.append(data)
+        with open(self.story_script_path(), "w", encoding="utf-8") as f:
+            json.dump(history, f, ensure_ascii=False, indent=2)
+
+    def load_story_script(self) -> dict | None:
+        """Loads the latest version of the story script."""
+        history = self.load_story_history()
+        if history:
+            return history[-1]
+        return None
+
+    def load_story_history(self) -> list[dict]:
+        path = self.story_script_path()
+        if not os.path.exists(path):
+            return []
+        with open(path, encoding="utf-8") as f:
+            try:
+                data = json.load(f)
+                if isinstance(data, list):
+                    return data
+                # Handle case where it might have been saved as a single object previously
+                return [data]
+            except json.JSONDecodeError:
+                return []
+
+    def restore_story_script_version(self, version_index: int) -> dict | None:
+        """Restores history to a specific version (0-indexed)."""
+        history = self.load_story_history()
+        if 0 <= version_index < len(history):
+            new_history = history[: version_index + 1]
+            with open(self.story_script_path(), "w", encoding="utf-8") as f:
+                json.dump(new_history, f, ensure_ascii=False, indent=2)
+            return new_history[-1]
+        return None
 
     @classmethod
     def list_stories(cls, base_dir: str = BASE_DIR) -> list:

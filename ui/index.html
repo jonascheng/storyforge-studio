@@ -17,19 +17,20 @@
             <div class="settings-btn" id="btnSettings">⚙️ 設定</div>
         </header>
 
-        <main class="main-content">
-            <!-- Step 1: 貼上故事 -->
-            <div class="card editor-card">
-                <h2>1. 貼上故事原稿</h2>
-                <textarea id="storyInput" placeholder="從前從前，在一個遙遠的王國裡..."></textarea>
-                <div class="story-name-row">
+        <div class="scroll-area" id="mainScrollArea">
+            <main class="main-content">
+                <!-- Step 1: 貼上故事想法 -->
+            <div class="card editor-card" id="step1Section">
+                <h2>1. 輸入故事想法</h2>
+                <textarea id="storyInput" placeholder="例如：一個關於會說話的貓和失憶魔法師的冒險故事..."></textarea>
+                <div class="story-name-row" style="display: none;">
                     <label for="storyNameInput">故事名稱</label>
-                    <input type="text" id="storyNameInput" placeholder="例如：小王子、三隻小豬...">
+                    <input type="text" id="storyNameInput" placeholder="AI 將自動產生，或手動輸入">
                 </div>
                 <div class="action-row" style="display: flex; gap: 10px; margin-top: 15px;">
-                    <button class="primary-btn" id="btnBreakdown">
-                        <span class="btn-text">🎬 AI 分析劇本</span>
-                        <span class="btn-loader hidden">分析中...</span>
+                    <button class="primary-btn" id="btnExpandStory">
+                        <span class="btn-text">✍️ AI 撰寫劇本</span>
+                        <span class="btn-loader hidden">撰寫中...</span>
                     </button>
                     <button class="secondary-btn" id="btnLoadScreenplay" title="若之前已分析過，可直接載入進度">
                         <span class="btn-text">📂 載入舊劇本</span>
@@ -38,10 +39,56 @@
                 </div>
             </div>
 
-            <!-- Step 2: 場景編輯區 -->
+            <!-- Step 2: 故事劇本編輯區 (Story Script) -->
+            <div class="card hidden" id="storyScriptSection">
+                <div class="scenes-header">
+                    <h2>2. 故事劇本確認</h2>
+                    <span class="story-name-badge" id="storyScriptTitleBadge"></span>
+                </div>
+                
+                <div style="margin-top: 15px;">
+                    <div class="textarea-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                        <label style="font-weight: bold;">故事內容</label>
+                        <button class="scene-regen-btn btn-zoom" data-target="storyScriptText" data-title="故事內容" title="全螢幕編輯">🔍 放大</button>
+                    </div>
+                    <textarea id="storyScriptText" class="editor-textarea" style="min-height: 200px; margin-bottom: 15px;"></textarea>
+                    
+                    <div class="textarea-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                        <label style="font-weight: bold;">角色設定</label>
+                        <button class="scene-regen-btn" id="btnAddCharacter" title="新增角色">➕ 新增角色</button>
+                    </div>
+                    <div id="charactersContainer" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px;"></div>
+                    
+                    <div class="textarea-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                        <label style="font-weight: bold;">世界觀規則</label>
+                        <button class="scene-regen-btn btn-zoom" data-target="storyScriptWorldview" data-title="世界觀規則" title="全螢幕編輯">🔍 放大</button>
+                    </div>
+                    <textarea id="storyScriptWorldview" class="editor-textarea" style="min-height: 80px; margin-bottom: 15px;"></textarea>
+                </div>
+
+                <div class="tweak-row" style="display: flex; gap: 10px; margin-bottom: 20px; align-items: center; background: rgba(0,0,0,0.05); padding: 10px; border-radius: 8px;">
+                    <input type="text" id="tweakInput" placeholder="例如：讓結局更感人、加入一個反派角色..." style="flex: 1; padding: 8px; border: 1px solid var(--border-color); border-radius: 4px;">
+                    <button class="secondary-btn" id="btnTweakStory">
+                        <span class="btn-text">✨ 讓 AI 重寫</span>
+                        <span class="btn-loader hidden">重寫中...</span>
+                    </button>
+                    <button class="secondary-btn" id="btnUndoTweak" title="復原至上一個版本" disabled>
+                        <span>↩️ 復原</span>
+                    </button>
+                </div>
+
+                <div class="final-actions" style="border-top: 1px solid var(--border-color); padding-top: 15px;">
+                    <button class="primary-btn pulse" id="btnBreakdown">
+                        <span class="btn-text">🎬 確認劇本，產生廣播劇</span>
+                        <span class="btn-loader hidden">分析中...</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Step 3: 場景編輯區 -->
             <div class="card scenes-card hidden" id="scenesSection">
                 <div class="scenes-header">
-                    <h2>2. 場景編輯區</h2>
+                    <h2>3. 廣播劇本編輯區</h2>
                     <span class="story-name-badge" id="storyNameBadge"></span>
                 </div>
                 <div class="scenes-list" id="scenesList">
@@ -55,6 +102,7 @@
                 </div>
             </div>
         </main>
+        </div>
     </div>
 
     <!-- Story Selector Modal -->
@@ -112,6 +160,18 @@
             <div class="spinner"></div>
             <h2 id="loadingText">AI 導演正在處理中...</h2>
             <p id="loadingSubtext">請稍候</p>
+        </div>
+    </div>
+
+    <!-- Zoom Modal -->
+    <div class="modal hidden" id="zoomModal">
+        <div class="modal-content glass-panel" style="width: 800px; max-width: 95vw; height: 80vh; display: flex; flex-direction: column;">
+            <h2 id="zoomModalTitle">編輯</h2>
+            <textarea id="zoomModalTextarea" class="editor-textarea" style="flex: 1; margin-bottom: 20px; resize: none;"></textarea>
+            <div class="modal-actions">
+                <button class="secondary-btn" id="btnCloseZoom">取消</button>
+                <button class="primary-btn" id="btnSaveZoom">確認更改</button>
+            </div>
         </div>
     </div>
 

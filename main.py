@@ -4,7 +4,7 @@ import traceback
 
 import webview
 
-from core.entities import Scene, ScriptLine
+from core.entities import Scene, ScriptLine, StoryScript
 from core.use_cases import StoryProcessor
 from infrastructure.audio_mixer import AudioMixer
 from infrastructure.bgm_map_storage import BgmMapStorage
@@ -57,19 +57,84 @@ class StoryForgeApi:
             "pause_seconds": self.processor.get_pause_seconds(),
         }
 
-    # ── 劇本拆解 ─────────────────────────────────────────────────
-    def break_down_story(self, text: str, story_name: str):
+    # ── 故事編劇步驟 (Screenwriter Step) ─────────────────────────
+    def expand_story(self, short_input: str):
+        try:
+            story_script = self.processor.expand_story_script(short_input)
+            story_name = story_script.title.strip()
+            # 確保有資料夾
+            folder = self._get_storage(story_name)
+            folder.ensure_folder()
+            # 儲存
+            folder.save_story_script(story_script.to_dict())
+            return {
+                "status": "ok",
+                "story_script": story_script.to_dict(),
+                "story_name": story_name,
+            }
+        except Exception as e:
+            return self._handle_error("expand_story", e)
+
+    def tweak_story(self, story_name: str, current_script_dict: dict, instruction: str):
+        try:
+            current_script = StoryScript(**current_script_dict)
+            new_script = self.processor.tweak_story_script(current_script, instruction)
+            folder = self._get_storage(story_name)
+            folder.ensure_folder()
+            folder.save_story_script(new_script.to_dict())
+            return {"status": "ok", "story_script": new_script.to_dict()}
+        except Exception as e:
+            return self._handle_error("tweak_story", e)
+
+    def save_story_script(self, story_name: str, script_dict: dict):
+        try:
+            folder = self._get_storage(story_name)
+            folder.ensure_folder()
+            folder.save_story_script(script_dict)
+            return {"status": "ok"}
+        except Exception as e:
+            return self._handle_error("save_story_script", e)
+
+    def get_story_history(self, story_name: str):
+        try:
+            folder = self._get_storage(story_name)
+            history = folder.load_story_history()
+            return {"status": "ok", "history": history}
+        except Exception as e:
+            return self._handle_error("get_story_history", e)
+
+    def restore_story_version(self, story_name: str, version_index: int):
+        try:
+            folder = self._get_storage(story_name)
+            restored = folder.restore_story_script_version(version_index)
+            if not restored:
+                return {"error": "找不到該版本"}
+            return {"status": "ok", "story_script": restored}
+        except Exception as e:
+            return self._handle_error("restore_story_version", e)
+
+    # ── 劇本拆解 (Analyst Step) ──────────────────────────────────
+    def break_down_story(self, story_script_dict: dict, story_name: str):
         try:
             folder = self._get_storage(story_name)
             folder.ensure_folder()
 
+            # 將整個 StoryScript 轉為純文字，供後續拆解
+            story_script = StoryScript(**story_script_dict)
+            text_for_analysis = (
+                f"【標題】{story_script.title}\n\n"
+                f"【故事內容】\n{story_script.story_text}\n\n"
+                f"【角色設定】\n{story_script.character_cards}\n\n"
+                f"【世界觀】\n{story_script.worldview_rules}"
+            )
+
             # 1. 預先掃描定義 BGM 主題
-            bgm_map = self.processor.define_bgm_themes(text)
+            bgm_map = self.processor.define_bgm_themes(text_for_analysis)
             bgm_storage = BgmMapStorage(folder.folder_path)
             bgm_storage.save(bgm_map)
 
             # 2. 進行劇本拆解
-            screenplay = self.processor.break_down_screenplay(text, bgm_map=bgm_map)
+            screenplay = self.processor.break_down_screenplay(text_for_analysis, bgm_map=bgm_map)
 
             # 儲存角色聲音對應表（AI 建議 + 防撞處理）
             voice_map = screenplay.voice_map
@@ -83,6 +148,7 @@ class StoryForgeApi:
             return {
                 "scenes": scenes_data,
                 "voice_map": voice_map,
+                "bgm_map": bgm_map.to_dict() if bgm_map else None,
             }
         except Exception as e:
             return self._handle_error("break_down_story", e)
@@ -137,8 +203,11 @@ class StoryForgeApi:
                 if sid is not None and os.path.exists(folder.scene_audio_path(sid)):
                     audio_ready_ids.append(sid)
 
+            story_script = folder.load_story_script()
+
             return {
                 "story_name": story_name,
+                "story_script": story_script,
                 "scenes": scenes_data,
                 "voice_map": voice_map,
                 "bgm_map": bgm_map.to_dict() if bgm_map else None,

@@ -68,3 +68,14 @@ class Script:
 
     def to_dict(self):
         return {"lines": [asdict(line) for line in self.lines]}
+
+
+@dataclass
+class StoryScript:
+    title: str
+    story_text: str
+    character_cards: list[dict]
+    worldview_rules: str
+
+    def to_dict(self):
+        return asdict(self)

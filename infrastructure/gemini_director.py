@@ -4,10 +4,10 @@ import json
 
 from google import genai
 
-from core.entities import BgmMap, BgmTheme, Scene, Screenplay, Script, ScriptLine
+from core.entities import BgmMap, BgmTheme, Scene, Screenplay, Script, ScriptLine, StoryScript
 from core.use_cases import IDirector
 from core.voice_catalog import resolve_voice_map
-from infrastructure.schemas import BgmMapDTO, SafeLinesDTO, ScreenplayDTO
+from infrastructure.schemas import BgmMapDTO, SafeLinesDTO, ScreenplayDTO, StoryScriptDTO
 
 
 class GeminiDirector(IDirector):
@@ -127,6 +127,64 @@ class GeminiDirector(IDirector):
         if text.endswith("```"):
             text = text[:-3]
         return text.strip()
+
+    # ── 編劇步驟 (Screenwriter) ───────────────────────────────────
+    def expand_story_script(self, short_input: str) -> StoryScript:
+        self._require_key()
+        prompt = f"""你是一位專業的 AI 廣播劇編劇。使用者提供了一個簡短的故事想法，請將其擴充為一個適合製作成有聲書的「故事劇本」。
+請提供：
+1. 一個吸引人的故事標題。
+2. 擴充後的故事大綱與情節描述（story_text），加入更多細節、對話與環境描寫，使其生動。
+3. 故事中的主要角色設定卡，並為每個角色推薦聲音類型（例如：童趣活潑[女]、威嚴粗獷[男]、旁白[中性]）。
+4. 世界觀與特殊規則設定。
+
+使用者的想法：
+{short_input}
+"""
+        raw = self._call_director_model(prompt, schema=StoryScriptDTO.model_json_schema())
+        text = self._clean_json(raw)
+        try:
+            dto = StoryScriptDTO.model_validate_json(text)
+            return StoryScript(
+                title=dto.title,
+                story_text=dto.story_text,
+                character_cards=[c.model_dump() for c in dto.character_cards],
+                worldview_rules=dto.worldview_rules,
+            )
+        except Exception as e:
+            raise ValueError(f"AI 回傳的故事劇本格式有誤: {e}")
+
+    def tweak_story_script(self, current_script: StoryScript, instruction: str) -> StoryScript:
+        self._require_key()
+        prompt = f"""你是一位專業的 AI 廣播劇編劇。以下是目前的「故事劇本」，以及使用者的修改指令。請根據指令修改並回傳完整的新版本劇本。
+
+目前的標題：{current_script.title}
+目前的故事內容：
+{current_script.story_text}
+
+目前的角色：
+{json.dumps(current_script.character_cards, ensure_ascii=False)}
+
+目前的世界觀：
+{current_script.worldview_rules}
+
+使用者的修改指令：
+{instruction}
+
+請確保回傳的內容完整包含標題、故事、角色與世界觀。
+"""
+        raw = self._call_director_model(prompt, schema=StoryScriptDTO.model_json_schema())
+        text = self._clean_json(raw)
+        try:
+            dto = StoryScriptDTO.model_validate_json(text)
+            return StoryScript(
+                title=dto.title,
+                story_text=dto.story_text,
+                character_cards=[c.model_dump() for c in dto.character_cards],
+                worldview_rules=dto.worldview_rules,
+            )
+        except Exception as e:
+            raise ValueError(f"AI 回傳的故事劇本格式有誤: {e}")
 
     # ── 向後相容舊介面 ────────────────────────────────────────────
     def break_down_script(self, story_text: str) -> Script:
