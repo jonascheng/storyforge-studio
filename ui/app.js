@@ -961,7 +961,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         setBtnLoading(btnMixFinal, true, "合併中...");
-        showLoading("正在合併所有場景…", "pydub 拼接音檔中，請稍候");
+        showLoading("正在合併所有場景…", "拼接音檔中，請稍候");
 
         try {
             const resp = await api("mix_final_audio", currentStory, readyIds);
