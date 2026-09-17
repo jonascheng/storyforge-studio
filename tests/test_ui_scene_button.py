@@ -43,6 +43,7 @@ const mockElement = (id) => {
 global.document = {
     addEventListener: (evt, fn) => { if (evt === 'DOMContentLoaded') loadHandler = fn; },
     getElementById: (id) => mockElement(id),
+    querySelectorAll: () => [],
     createElement: (tag) => {
         const el = mockElement();
         Object.defineProperty(el, 'innerHTML', {
@@ -64,6 +65,7 @@ global.document = {
     }
 };
 global.window = {
+    addEventListener: () => {},
     confirm: () => true,
     pywebview: {
         api: {
@@ -165,13 +167,14 @@ const toastEl = {
 global.document = {
     addEventListener: (evt, fn) => { if (evt === 'DOMContentLoaded') loadHandler = fn; },
     getElementById: (id) => (id === 'toast' ? toastEl : mockElement(id)),
+    querySelectorAll: () => [],
     createElement: (tag) => {
         const el = mockElement();
         el.tagName = tag;
         return el;
     }
 };
-global.window = { pywebview: { api: {} } };
+global.window = { addEventListener: () => {}, pywebview: { api: {} } };
 global.pywebview = global.window.pywebview;
 global.navigator = { clipboard: { writeText: async () => {} } };
 
@@ -239,11 +242,13 @@ const mockElement = (id) => {
 global.document = {
     addEventListener: (evt, fn) => { if (evt === 'DOMContentLoaded') loadHandler = fn; },
     getElementById: (id) => elements[id] || mockElement(id),
+    querySelectorAll: () => [],
     createElement: (tag) => mockElement()
 };
 
 let selectStoryFolderCalled = false;
 global.window = {
+    addEventListener: () => {},
     confirm: (msg) => {
         confirmCalled = true;
         return confirmReturn;
