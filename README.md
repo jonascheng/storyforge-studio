@@ -28,20 +28,7 @@ StoryForge 就像一位住在你電腦裡的 **AI 總導演**。只要把寫好�
      curl -LsSf https://astral.sh/uv/install.sh | sh
      ```
 
----
-
-### 第二步：領取免費通關鑰匙（Gemini API 通行證）
-
-StoryForge 使用 Google 最聰明的 Gemini 作為 AI 導演。我們需要向 Google 領取一張免費的專屬通行證（完全不需要付費）：
-
-1. 打開 [Google AI Studio](https://aistudio.google.com/) 網頁並登入你的 Google 帳號。
-2. 點擊畫面上的 **「Get API key」**（取得通行證）。
-3. 點擊 **「Create API key」**，建立完成後點擊 **Copy** 複製那串英文數字密碼。
-4. （先將這串密碼放在剪貼簿中，等一下打開軟體會用到！）
-
----
-
-### 第三步：一鍵啟動 StoryForge（免安裝！）
+### 第二步：一鍵啟動 StoryForge（免安裝！）
 
 在剛剛打開的黑色終端機小視窗中，貼上以下這行指令並按 `Enter`：
 
@@ -49,10 +36,19 @@ StoryForge 使用 Google 最聰明的 Gemini 作為 AI 導演。我們需要向 
 uvx --from git+https://github.com/jonascheng/storyforge-studio storyforge
 ```
 
-
 > 💡 **小秘訣**：
 > 電腦會自動準備好所有環境與音訊小工具，只要幾秒鐘，美麗的 **StoryForge 操作視窗** 就會自動彈出來囉！
 > *(未來若發布至官方套件庫，亦可使用更簡短的 `uvx storyforge-studio`)*
+
+---
+
+### 第三步：領取並設定免費通關鑰匙（Gemini API 通行證）
+
+首次啟動或尚未設定通行證時，畫面會自動跳出提醒視窗，指引您前往右上角的 **「⚙️ 系統設定」** 完成設定：
+
+1. 點擊設定畫面中 `Gemini API Key` 欄位旁的超連結，前往 [Google AI Studio](https://aistudio.google.com/) 網頁並登入您的 Google 帳號。
+2. 點擊畫面上的 **「Get API key」**，接著 **「Create API key」**，建立並複製那串英文數字密碼。
+3. 回到 StoryForge 貼上密碼並儲存。（只要設定一次，下次打開不用再輸入！）
 
 ---
 
@@ -70,10 +66,9 @@ uvx --from git+https://github.com/jonascheng/storyforge-studio storyforge
  [4. 挑選聲音 ➔ 產生有聲書] 🎧
 ```
 
-1. **⚙️ 通行證設定**：
-   - 點擊右上角的 **「⚙️ 通行證設定」**。
-   - 把第二步領到的 Gemini API 通行證貼上，點擊 **「儲存」**。
-   - 只要設定一次，電腦就會永久記住，下次打開不用再輸入！
+ 1. **⚙️ 確認通行證設定**：
+   - 確保已依照快速上手第三步，在 **「⚙️ 系統設定」** 中填寫 Gemini API 通行證。
+   - （首次啟動未設定時，系統會跳出提醒視窗引導您。）
 
 2. **📝 輸入故事名稱與原稿**：
    - 在「故事名稱」輸入你的作品名（例如：`三隻小豬`）。

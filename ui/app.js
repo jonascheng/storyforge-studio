@@ -997,4 +997,13 @@ document.addEventListener("DOMContentLoaded", () => {
             text.textContent = loadingLabel;
         }
     }
+
+    // ── Init ──────────────────────────────────────────────────
+    window.addEventListener("pywebviewready", async () => {
+        const settings = await api("get_settings");
+        if (settings && !settings.error && !settings.key) {
+            alert("首次啟動或尚未設定通行證，請在接下來的設定畫面中填寫您的 Gemini API Key！");
+            btnSettings.click();
+        }
+    });
 });
