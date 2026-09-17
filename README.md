@@ -33,12 +33,12 @@ StoryForge 就像一位住在你電腦裡的 **AI 總導演**。只要把心中�
 在剛剛打開的黑色終端機小視窗中，貼上以下這行指令並按 `Enter`：
 
 ```bash
-uvx --from git+https://github.com/jonascheng/storyforge-studio storyforge
+uvx storyforge-studio
 ```
 
 > 💡 **小秘訣**：
 > 電腦會自動準備好所有環境與音訊小工具，只要幾秒鐘，美麗的 **StoryForge 操作視窗** 就會自動彈出來囉！
-> *(未來若發布至官方套件庫，亦可使用更簡短的 `uvx storyforge-studio`)*
+> *(若欲測試開發中未發布版本，亦可使用 `uvx --from git+https://github.com/jonascheng/storyforge-studio storyforge`)*
 
 ---
 

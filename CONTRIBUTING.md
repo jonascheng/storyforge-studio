@@ -108,3 +108,18 @@
 - [ ] 新增或修改的功能具備對應的單元或整合測試。
 - [ ] 若涉及重要決策，已撰寫或更新對應的 [ADR (Architecture Decision Record)](docs/adr/)。
 - [ ] PR 描述清晰說明修改動機與驗證成果。
+
+---
+
+## 📦 發布新版本至 PyPI (Release Process)
+
+本專案透過 GitHub Actions 與 PyPI **免密鑰安全授權 (Trusted Publishing)** 進行自動發布：
+
+1. **更新版本號**：在 `pyproject.toml` 更新 `version = "x.y.z"`。
+2. **建立 GitHub Release**：
+   - 建立並發布新 Release，Tag 名稱標註為 `vx.y.z`（例如 `v0.1.0`）。
+3. **自動上架**：
+   - 雲端工作流（`release.yml`）會自動觸發品質安檢（Ruff + pytest）。
+   - 安檢全數通過後自動執行 `uv build` 打包，並透過 OIDC 安全上傳至 PyPI 官方貨架。
+   - 使用者即可直接以 `uvx storyforge-studio` 取得最新版本。
+

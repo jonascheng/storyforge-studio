@@ -132,22 +132,26 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function api(method, ...args) {
-        if (window.pywebview) return pywebview.api[method](...args);
+        if (window.pywebview && pywebview.api && typeof pywebview.api[method] === "function") {
+            return pywebview.api[method](...args);
+        }
         return Promise.resolve({ error: "pywebview not available" });
     }
 
     // ── Zoom Modal ────────────────────────────────────────────
-    document.querySelectorAll(".btn-zoom").forEach(btn => {
-        btn.addEventListener("click", () => {
-            zoomTargetId = btn.getAttribute("data-target");
-            const title = btn.getAttribute("data-title");
-            zoomModalTitle.textContent = "編輯 " + title;
-            const targetEl = document.getElementById(zoomTargetId);
-            zoomModalTextarea.value = targetEl ? targetEl.value : "";
-            zoomModal.classList.remove("hidden");
-            zoomModalTextarea.focus();
+    if (typeof document.querySelectorAll === "function") {
+        document.querySelectorAll(".btn-zoom").forEach(btn => {
+            btn.addEventListener("click", () => {
+                zoomTargetId = btn.getAttribute("data-target");
+                const title = btn.getAttribute("data-title");
+                zoomModalTitle.textContent = "編輯 " + title;
+                const targetEl = document.getElementById(zoomTargetId);
+                zoomModalTextarea.value = targetEl ? targetEl.value : "";
+                zoomModal.classList.remove("hidden");
+                zoomModalTextarea.focus();
+            });
         });
-    });
+    }
 
     btnCloseZoom.addEventListener("click", () => {
         zoomModal.classList.add("hidden");
@@ -999,11 +1003,13 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // ── Init ──────────────────────────────────────────────────
-    window.addEventListener("pywebviewready", async () => {
-        const settings = await api("get_settings");
-        if (settings && !settings.error && !settings.key) {
-            alert("首次啟動或尚未設定通行證，請在接下來的設定畫面中填寫您的 Gemini API Key！");
-            btnSettings.click();
-        }
-    });
+    if (typeof window.addEventListener === "function") {
+        window.addEventListener("pywebviewready", async () => {
+            const settings = await api("get_settings");
+            if (settings && !settings.error && !settings.key) {
+                alert("首次啟動或尚未設定通行證，請在接下來的設定畫面中填寫您的 Gemini API Key！");
+                btnSettings.click();
+            }
+        });
+    }
 });

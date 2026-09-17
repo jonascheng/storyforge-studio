@@ -105,3 +105,12 @@ _Avoid_: pre-commit script, hook
 **雲端守門員 (GitHub CI)**:
 當把寫好的故事程式送到 GitHub 雲端時，自動在雲端乾淨電腦裡替我們把所有積木全部重新檢查與跑測試的自動化機器人。
 _Avoid_: CI/CD, pipeline, Actions runner
+
+**官方世界超市 (PyPI)**:
+全球 Python 軟體的公開大貨架。使用者電腦只要輸入 `uvx storyforge-studio`，跑腿小幫手就會直接到這座超市把軟體拿下來執行。
+_Avoid_: package index, 包倉庫
+
+**免密鑰安全授權 (Trusted Publishing)**:
+GitHub 雲端守門員與 PyPI 超市之間彼此相認的免密碼身分證。替故事軟體貼上新版本貼紙時，自動把軟體安全送上超市，不需在電腦留下任何密碼。
+_Avoid_: PyPI token, API key, OIDC
+
