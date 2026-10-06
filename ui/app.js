@@ -648,6 +648,27 @@ document.addEventListener("DOMContentLoaded", () => {
         sfxRow.appendChild(sfxSelect);
         body.appendChild(sfxRow);
 
+        // ── 場景環境音 ──────────────────────────────────────────
+        const ambRow = document.createElement("div");
+        ambRow.className = "sfx-row";
+        ambRow.style.marginTop = "6px";
+        ambRow.style.marginBottom = "10px";
+        ambRow.style.fontSize = "13px";
+        ambRow.style.color = "var(--text-muted)";
+        const ambMap = {
+            "rain": "雨聲 🌧️",
+            "wind": "陣風 💨",
+            "forest": "森林鳥鳴 🌲",
+            "night": "夏夜蟲鳴 🌙",
+            "fireplace": "壁爐柴火 🔥",
+            "sea": "海浪波濤 🌊",
+            "room": "安靜室內 🏠",
+            "cafe": "咖啡廳氛圍 ☕",
+        };
+        const ambText = ambMap[scene.ambience_id] || (scene.ambience_id ? scene.ambience_id : "無");
+        ambRow.innerHTML = `<span style="font-weight: 500;">🍃 場景環境音（AI 導演自動指派）：</span><span style="color: var(--text-main); font-weight: 600;">${ambText}</span>`;
+        body.appendChild(ambRow);
+
         scene.lines.forEach((line, lineIdx) => {
             const row = document.createElement("div");
             row.className = "script-line";
