@@ -106,6 +106,37 @@ def test_break_down_screenplay_parses_dict_with_voice_map():
     assert screenplay.voice_map["怪獸"]["voice"] == "Algenib"
 
 
+def test_break_down_screenplay_parses_scene_ambience_id():
+    director = GeminiDirector(api_key="fake-key")
+    response_payload = json.dumps(
+        {
+            "voice_map": {"旁白": {"voice": "Kore", "audio_profile": "Narrator."}},
+            "scenes": [
+                {
+                    "scene_id": 1,
+                    "title": "雨夜相遇",
+                    "bgm_theme_id": "daily",
+                    "ambience_id": "rain",
+                    "scene_description": "Rain falling outside.",
+                    "lines": [
+                        {
+                            "role": "旁白",
+                            "emotion": "平靜",
+                            "text": "窗外下著雨。",
+                            "voice_direction_note": "[calm]",
+                        }
+                    ],
+                }
+            ],
+        }
+    )
+    with patch.object(director, "_call_director_model", return_value=response_payload):
+        screenplay = director.break_down_screenplay("故事")
+    assert len(screenplay.scenes) == 1
+    assert screenplay.scenes[0].ambience_id == "rain"
+    assert screenplay.scenes[0].bgm_theme_id == "daily"
+
+
 def test_break_down_screenplay_raises_on_bad_json():
     director = GeminiDirector(api_key="fake-key")
     with patch.object(director, "_call_director_model", return_value="not json at all"):

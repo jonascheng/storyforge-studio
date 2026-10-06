@@ -43,6 +43,10 @@ class SceneDTO(BaseModel):
         default=None,
         description="從 BGM 主題表中挑選的 bgm_theme_id；若無需 BGM 則為 null",
     )
+    ambience_id: str | None = Field(
+        default=None,
+        description="從環境音百寶箱挑選的 ambience_id（如 'rain', 'wind', 'forest', 'night', 'fireplace', 'sea', 'room', 'cafe'）；若無需環境音則為 null",
+    )
     scene_description: str = Field(
         default="",
         description=(

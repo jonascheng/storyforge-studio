@@ -237,6 +237,13 @@ class GeminiDirector(IDirector):
                 f"- ID: {k}, 名稱: {v.name}, 描述: {v.prompt}" for k, v in bgm_map.themes.items()
             )
 
+        from infrastructure.ambience_catalog import AmbienceCatalog
+
+        ambience_themes_str = "\n".join(
+            f"- ID: {t.theme_id}, 名稱: {t.name}, 說明: {t.description}"
+            for t in AmbienceCatalog.list_themes()
+        )
+
         prompt = f"""你是一位專業的有聲書導演。請將以下故事拆解為多個「場景」，並為所有出場角色挑選最合適的聲音演員。
 
 聲音演員庫（供角色配音挑選，請依照角色性別挑選相符前綴的演員，每位角色盡量使用不同演員）：
@@ -249,13 +256,17 @@ class GeminiDirector(IDirector):
 BGM 主題清單（供場景配樂挑選）：
 {bgm_themes_str}
 
+環境音百寶箱清單（供場景環境音挑選，若情節無需環境音則填 null）：
+{ambience_themes_str}
+
 每個場景代表一個情節單元（時間地點或情緒基調相對一致），每個場景最多 300 字。
 每個場景需要：
 1. 一個 scene_id（從 1 開始）
 2. 一個簡短的中文場景標題（4-10 個字）
 3. 一個 bgm_theme_id（從 BGM 主題清單中挑選；若無需 BGM 則為 null）
-4. 一個 scene_description（英文，2-4 句，描述場景的地點、時間、氛圍，例如："A cluttered living room late at night. The air is tense and silent."）
-5. 所有台詞行，每行需有：role（角色名或「旁白」）、emotion（情緒）、text（台詞）、voice_direction_note（英文聲音導演備註，如 "[calm, slow]"）
+4. 一個 ambience_id（從環境音百寶箱清單中挑選 ID；若無需環境音則為 null）
+5. 一個 scene_description（英文，2-4 句，描述場景的地點、時間、氛圍，例如："A cluttered living room late at night. The air is tense and silent."）
+6. 所有台詞行，每行需有：role（角色名或「旁白」）、emotion（情緒）、text（台詞）、voice_direction_note（英文聲音導演備註，如 "[calm, slow]"）
 
 另外，voice_map 的每個角色條目需包含：
 - voice：選取的聲音演員名稱
@@ -276,6 +287,7 @@ BGM 主題清單（供場景配樂挑選）：
       "scene_id": 1,
       "title": "書房中的爭吵",
       "bgm_theme_id": "tension",
+      "ambience_id": "rain",
       "scene_description": "A dim study room at midnight. Books are scattered across the floor. The atmosphere is thick with unspoken anger.",
       "lines": [
         {{"role": "旁白", "emotion": "緊張", "text": "門突然被推開", "voice_direction_note": "[tense, urgent]"}},
@@ -334,6 +346,7 @@ BGM 主題清單（供場景配樂挑選）：
                         title=item["title"],
                         lines=lines,
                         bgm_theme_id=item.get("bgm_theme_id"),
+                        ambience_id=item.get("ambience_id"),
                         scene_description=item.get("scene_description", ""),
                     )
                 )
