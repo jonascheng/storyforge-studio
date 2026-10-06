@@ -26,3 +26,14 @@ To make StoryForge audiobooks dynamic with transient action sounds (such as door
   9. `ding` (清脆鈴鐺聲)
   10. `ignite` (火焰燃起聲)
 - Advantages: Zero external asset download, zero storage overhead, zero network dependency, deterministic, and instant generation.
+
+## 3. Audio Ducking and Four-layer Mixing Hierarchy
+- When transient Foley cues occur, background score (BGM) is dynamically ducked:
+  - Attack: 60 ms smooth attenuation curve.
+  - Hold: Sustained attenuation at -8 dBFS (or user-configured `duck_db`).
+  - Release: 300 ms quadratic curve smooth recovery.
+- Mixing hierarchy:
+  1. Dialogue (0 dBFS, top)
+  2. Foley SFX (0 dBFS / adjusted volume)
+  3. BGM (-18 dBFS with automatic ducking on Foley events)
+  4. Ambience (-22 dBFS / -18 dBFS without BGM)
