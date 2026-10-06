@@ -44,6 +44,19 @@ def test_scene_creation():
     assert scene.title == "開場白"
     assert len(scene.lines) == 1
     assert scene.scene_description == ""  # 預設為空字串
+    assert scene.ambience_id is None  # 預設為 None
+
+
+def test_scene_creation_with_ambience():
+    line = ScriptLine(role="旁白", emotion="平靜", text="窗外下著大雨...")
+    scene = Scene(
+        scene_id=1,
+        title="雨夜",
+        lines=[line],
+        ambience_id="rain",
+    )
+    assert scene.ambience_id == "rain"
+    assert scene.to_dict()["ambience_id"] == "rain"
 
 
 def test_scene_creation_with_description():
