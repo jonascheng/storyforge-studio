@@ -247,6 +247,7 @@ class StoryForgeApi:
                 title=scene_data.get("title", ""),
                 lines=lines,
                 bgm_theme_id=scene_data.get("bgm_theme_id"),
+                ambience_id=scene_data.get("ambience_id"),
                 scene_description=scene_data.get("scene_description", ""),
             )
 

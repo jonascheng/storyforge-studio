@@ -237,6 +237,13 @@ class GeminiDirector(IDirector):
                 f"- ID: {k}, 名稱: {v.name}, 描述: {v.prompt}" for k, v in bgm_map.themes.items()
             )
 
+        from infrastructure.ambience_catalog import AmbienceCatalog
+
+        ambience_themes_str = "\n".join(
+            f"- ID: {t.theme_id}, 名稱: {t.name}, 說明: {t.description}"
+            for t in AmbienceCatalog.list_themes()
+        )
+
         prompt = f"""你是一位專業的有聲書導演。請將以下故事拆解為多個「場景」，並為所有出場角色挑選最合適的聲音演員。
 
 聲音演員庫（供角色配音挑選，請依照角色性別挑選相符前綴的演員，每位角色盡量使用不同演員）：
@@ -249,13 +256,17 @@ class GeminiDirector(IDirector):
 BGM 主題清單（供場景配樂挑選）：
 {bgm_themes_str}
 
+環境音百寶箱清單（供場景環境音挑選，若情節無需環境音則填 null）：
+{ambience_themes_str}
+
 每個場景代表一個情節單元（時間地點或情緒基調相對一致），每個場景最多 300 字。
 每個場景需要：
 1. 一個 scene_id（從 1 開始）
 2. 一個簡短的中文場景標題（4-10 個字）
 3. 一個 bgm_theme_id（從 BGM 主題清單中挑選；若無需 BGM 則為 null）
-4. 一個 scene_description（英文，2-4 句，描述場景的地點、時間、氛圍，例如："A cluttered living room late at night. The air is tense and silent."）
-5. 所有台詞行，每行需有：role（角色名或「旁白」）、emotion（情緒）、text（台詞）、voice_direction_note（英文聲音導演備註，如 "[calm, slow]"）
+4. 一個 ambience_id（從環境音百寶箱清單中挑選 ID；若無需環境音則為 null）
+5. 一個 scene_description（英文，2-4 句，描述場景的地點、時間、氛圍，例如："A cluttered living room late at night. The air is tense and silent."）
+6. 所有台詞行，每行需有：role（角色名或「旁白」）、emotion（情緒）、text（台詞）、voice_direction_note（英文聲音導演備註，如 "[calm, slow]"）
 
 另外，voice_map 的每個角色條目需包含：
 - voice：選取的聲音演員名稱
@@ -276,6 +287,7 @@ BGM 主題清單（供場景配樂挑選）：
       "scene_id": 1,
       "title": "書房中的爭吵",
       "bgm_theme_id": "tension",
+      "ambience_id": "rain",
       "scene_description": "A dim study room at midnight. Books are scattered across the floor. The atmosphere is thick with unspoken anger.",
       "lines": [
         {{"role": "旁白", "emotion": "緊張", "text": "門突然被推開", "voice_direction_note": "[tense, urgent]"}},
@@ -334,6 +346,7 @@ BGM 主題清單（供場景配樂挑選）：
                         title=item["title"],
                         lines=lines,
                         bgm_theme_id=item.get("bgm_theme_id"),
+                        ambience_id=item.get("ambience_id"),
                         scene_description=item.get("scene_description", ""),
                     )
                 )
@@ -412,15 +425,10 @@ BGM 主題清單（供場景配樂挑選）：
 
     @staticmethod
     def _build_looped_bgm(bgm_segment, target_ms: int, crossfade_ms: int = 1000):
-        """BGM 足長工具：若 bgm_segment 不夠 target_ms，用 crossfade 無縭循環拼接直到夠長。"""
-        if len(bgm_segment) >= target_ms:
-            return bgm_segment[:target_ms]
-        result = bgm_segment
-        # 保護：crossfade 不能大於單段長度
-        cf = min(crossfade_ms, len(bgm_segment) - 1)
-        while len(result) < target_ms:
-            result = result.append(bgm_segment, crossfade=cf)
-        return result[:target_ms]
+        """BGM 足長工具：委派至 AudioMixer.build_looped_audio。"""
+        from infrastructure.audio_mixer import AudioMixer
+
+        return AudioMixer.build_looped_audio(bgm_segment, target_ms, crossfade_ms)
 
     @staticmethod
     def _get_voice_name(voice_map: dict, role: str, default: str = "Kore") -> str:
@@ -898,10 +906,15 @@ BGM 主題清單（供場景配樂挑選）：
 
             combined += group_audio
 
-        # ── BGM 混音 ────────────────────────────────────────────────
-        if scene.bgm_theme_id and bgm_map and scene.bgm_theme_id in bgm_map.themes:
-            import os
+        # ── 三層混音（對白 + BGM + 環境音） ─────────────────────────
+        import os
 
+        from infrastructure.ambience_catalog import AmbienceCatalog
+        from infrastructure.audio_mixer import AudioMixer
+
+        # 1. 取得配樂 (BGM)
+        raw_bgm = None
+        if scene.bgm_theme_id and bgm_map and scene.bgm_theme_id in bgm_map.themes:
             theme = bgm_map.themes[scene.bgm_theme_id]
             bgm_path = os.path.join(
                 os.path.dirname(output_path),
@@ -913,37 +926,27 @@ BGM 主題清單（供場景配樂挑選）：
                     self.generate_scene_bgm(theme.prompt, bgm_path)
                 else:
                     print(f"DEBUG: 重複使用 BGM 主題 '{theme.name}'...")
-
                 raw_bgm = AudioSegment.from_mp3(bgm_path)
-
-                BGM_DB = -18  # BGM 混入音量（對白永遠主導）
-                FADE_IN_MS = 2000  # 淡入
-                FADE_OUT_MS = 2000  # 淡出
-                CROSSFADE_MS = 1000  # crossfade loop 接縭
-
-                dialogue_ms = len(combined)
-
-                # 1. 建立足夠長的 BGM 軌道
-                bgm_track = self._build_looped_bgm(raw_bgm, dialogue_ms, CROSSFADE_MS)
-
-                # 2. 整體壓低 -18 dB + 淡入淡出
-                bgm_track = (bgm_track + BGM_DB).fade_in(FADE_IN_MS).fade_out(FADE_OUT_MS)
-
-                # 3. 對齊長度（BGM 軌道與對白同長）
-                max_len = max(len(bgm_track), dialogue_ms)
-                bgm_track = bgm_track + AudioSegment.silent(duration=max_len - len(bgm_track))
-                dialogue_padded = combined + AudioSegment.silent(duration=max_len - dialogue_ms)
-
-                # 4. overlay：BGM 墊底，對白在上
-                final_audio = bgm_track.overlay(dialogue_padded)
-                print(
-                    f"DEBUG: BGM 混音完成（BGM {BGM_DB} dB，總長 {len(final_audio) / 1000:.1f} 秒）"
-                )
             except Exception as e:
-                print(f"DEBUG: BGM 生成失敗（{e}），跳過 BGM，僅輸出對白")
-                final_audio = combined
-        else:
-            final_audio = combined
+                print(f"DEBUG: BGM 生成失敗（{e}），跳過 BGM")
+                raw_bgm = None
+
+        # 2. 取得環境音 (Ambience)
+        raw_ambience = None
+        if scene.ambience_id and AmbienceCatalog.has_theme(scene.ambience_id):
+            try:
+                raw_ambience = AmbienceCatalog.get_looped_ambience(scene.ambience_id, len(combined))
+                print(f"DEBUG: 載入場景環境音 '{scene.ambience_id}'...")
+            except Exception as e:
+                print(f"DEBUG: 環境音載入失敗（{e}），跳過環境音")
+                raw_ambience = None
+
+        # 3. 三層混音疊加
+        final_audio = AudioMixer.mix_scene_layers(
+            dialogue=combined,
+            bgm=raw_bgm,
+            ambience=raw_ambience,
+        )
 
         final_audio.export(output_path, format="mp3")
         return output_path

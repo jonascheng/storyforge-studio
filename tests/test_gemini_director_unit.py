@@ -106,6 +106,37 @@ def test_break_down_screenplay_parses_dict_with_voice_map():
     assert screenplay.voice_map["怪獸"]["voice"] == "Algenib"
 
 
+def test_break_down_screenplay_parses_scene_ambience_id():
+    director = GeminiDirector(api_key="fake-key")
+    response_payload = json.dumps(
+        {
+            "voice_map": {"旁白": {"voice": "Kore", "audio_profile": "Narrator."}},
+            "scenes": [
+                {
+                    "scene_id": 1,
+                    "title": "雨夜相遇",
+                    "bgm_theme_id": "daily",
+                    "ambience_id": "rain",
+                    "scene_description": "Rain falling outside.",
+                    "lines": [
+                        {
+                            "role": "旁白",
+                            "emotion": "平靜",
+                            "text": "窗外下著雨。",
+                            "voice_direction_note": "[calm]",
+                        }
+                    ],
+                }
+            ],
+        }
+    )
+    with patch.object(director, "_call_director_model", return_value=response_payload):
+        screenplay = director.break_down_screenplay("故事")
+    assert len(screenplay.scenes) == 1
+    assert screenplay.scenes[0].ambience_id == "rain"
+    assert screenplay.scenes[0].bgm_theme_id == "daily"
+
+
 def test_break_down_screenplay_raises_on_bad_json():
     director = GeminiDirector(api_key="fake-key")
     with patch.object(director, "_call_director_model", return_value="not json at all"):
@@ -698,3 +729,41 @@ def test_generate_scene_bgm_calls_create_interaction_with_retry():
         assert res == "/tmp/bgm.mp3"
         assert mock_create.call_args[1]["model"] == "lyria-3-clip-preview"
         assert mock_create.call_args[1]["store"] is False
+
+
+def test_generate_scene_audio_with_ambience_layer():
+    import base64
+
+    from pydub import AudioSegment
+
+    from infrastructure.audio_mixer import AudioMixer
+
+    director = GeminiDirector(api_key="fake-key")
+    scene = Scene(
+        scene_id=1,
+        title="雨夜場景",
+        lines=[ScriptLine(role="旁白", emotion="平靜", text="窗外下著雨。")],
+        ambience_id="rain",
+    )
+    voice_map = {"旁白": "Kore"}
+
+    mock_resp = MagicMock()
+    mock_audio = MagicMock()
+    mock_audio.data = base64.b64encode(b"\x00\x00" * 1000).decode("utf-8")
+    mock_audio.mime_type = "audio/pcm;rate=24000"
+    mock_resp.output_audio = mock_audio
+
+    with (
+        patch.object(director, "_create_interaction_with_retry", return_value=mock_resp),
+        patch(
+            "infrastructure.audio_mixer.AudioMixer.mix_scene_layers",
+            wraps=AudioMixer.mix_scene_layers,
+        ) as spy_mix,
+        patch.object(AudioSegment, "export"),
+    ):
+        out = director.generate_scene_audio(scene, voice_map, "/tmp/test_rain_scene.mp3")
+        assert out == "/tmp/test_rain_scene.mp3"
+        assert spy_mix.call_count == 1
+        _, kwargs = spy_mix.call_args
+        assert kwargs["ambience"] is not None
+        assert kwargs["bgm"] is None

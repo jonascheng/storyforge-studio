@@ -27,3 +27,39 @@ def test_mix_concatenates_files(tmp_path):
 def test_mix_raises_if_no_scenes(tmp_path):
     with pytest.raises(ValueError, match="至少需要一個場景"):
         AudioMixer.mix([], str(tmp_path / "out.mp3"))
+
+
+def test_mix_scene_layers_dialogue_only():
+    from pydub import AudioSegment
+
+    dialogue = AudioSegment.silent(duration=3000)
+    result = AudioMixer.mix_scene_layers(dialogue=dialogue, bgm=None, ambience=None)
+    assert len(result) == 3000
+
+
+def test_mix_scene_layers_with_bgm_only():
+    from pydub import AudioSegment
+
+    dialogue = AudioSegment.silent(duration=5000)
+    bgm = AudioSegment.silent(duration=2000)  # 需要循環延長
+    result = AudioMixer.mix_scene_layers(dialogue=dialogue, bgm=bgm, ambience=None)
+    assert len(result) == 5000
+
+
+def test_mix_scene_layers_with_ambience_only():
+    from pydub import AudioSegment
+
+    dialogue = AudioSegment.silent(duration=6000)
+    ambience = AudioSegment.silent(duration=2000)
+    result = AudioMixer.mix_scene_layers(dialogue=dialogue, bgm=None, ambience=ambience)
+    assert len(result) == 6000
+
+
+def test_mix_scene_layers_with_both_bgm_and_ambience():
+    from pydub import AudioSegment
+
+    dialogue = AudioSegment.silent(duration=7000)
+    bgm = AudioSegment.silent(duration=3000)
+    ambience = AudioSegment.silent(duration=3000)
+    result = AudioMixer.mix_scene_layers(dialogue=dialogue, bgm=bgm, ambience=ambience)
+    assert len(result) == 7000
