@@ -19,6 +19,8 @@ dependencies = [
     "audioop-lts>=0.2.1; python_version >= '3.13'",
     "pyobjc-framework-webkit>=10.0; sys_platform == 'darwin'",
     "pythonnet>=3.0.0; sys_platform == 'win32'",
+    "numpy>=2.4.6",
+    "scipy>=1.17.1",
 ]
 
 
