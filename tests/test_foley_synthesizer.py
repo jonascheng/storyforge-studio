@@ -103,3 +103,22 @@ def test_find_by_keyword():
 
     match_none = FoleySynthesizer.find_by_keyword("太空梭起飛")
     assert match_none is None
+
+
+def test_improved_sfx_durations_and_energy():
+    """驗證改良後 10 款動作擬音時長充足且 RMS 能量飽滿，具備戲劇存在感。"""
+    for item in FoleySynthesizer.list_sfx():
+        seg = FoleySynthesizer.synthesize(item.sfx_id)
+        # 即使最短的點擊 click 也至少 120ms，腳步至少 400ms，雷聲超過 2 秒
+        assert len(seg) >= int(item.duration_sec * 1000) - 20
+        # 驗證音量非靜音且具備良好響度（RMS dBFS 高於 -35 dBFS）
+        assert seg.dBFS > -35.0
+
+
+def test_synthesize_custom_duration():
+    """驗證支援自訂時長合成（例如長腳步或短呼嘯）。"""
+    seg_step_long = FoleySynthesizer.synthesize("step", duration_sec=2.0)
+    assert len(seg_step_long) >= 1950
+
+    seg_whoosh_short = FoleySynthesizer.synthesize("whoosh", duration_sec=0.5)
+    assert 480 <= len(seg_whoosh_short) <= 520
