@@ -238,10 +238,16 @@ class GeminiDirector(IDirector):
             )
 
         from infrastructure.ambience_catalog import AmbienceCatalog
+        from infrastructure.foley_synthesizer import FoleySynthesizer
 
         ambience_themes_str = "\n".join(
             f"- ID: {t.theme_id}, 名稱: {t.name}, 說明: {t.description}"
             for t in AmbienceCatalog.list_themes()
+        )
+
+        foley_catalog_str = "\n".join(
+            f"- ID: {s.sfx_id}, 名稱: {s.name}, 說明: {s.description}"
+            for s in FoleySynthesizer.list_sfx()
         )
 
         prompt = f"""你是一位專業的有聲書導演。請將以下故事拆解為多個「場景」，並為所有出場角色挑選最合適的聲音演員。
@@ -259,6 +265,15 @@ BGM 主題清單（供場景配樂挑選）：
 環境音百寶箱清單（供場景環境音挑選，若情節無需環境音則填 null）：
 {ambience_themes_str}
 
+動作擬音百寶箱清單（供場景中人物動作或關鍵事件插入擬音，若無需擬音則不插入）：
+{foley_catalog_str}
+
+當故事中有生動的人物動作、物品碰撞、突發天候或緊張心跳時，請在台詞之間插入專門的動作音效行：
+- role 填寫 "音效"
+- emotion 填寫 "擬音"
+- text 填寫簡短中文說明（例如："木門被推開聲"、"急促腳步聲"、"轟隆雷鳴"、"重擊聲"、"心跳急促"）
+- voice_direction_note 填寫動作擬音 ID（例如："creak"、"step"、"rumble"、"thump"、"heartbeat" 等）
+
 每個場景代表一個情節單元（時間地點或情緒基調相對一致），每個場景最多 300 字。
 每個場景需要：
 1. 一個 scene_id（從 1 開始）
@@ -266,7 +281,7 @@ BGM 主題清單（供場景配樂挑選）：
 3. 一個 bgm_theme_id（從 BGM 主題清單中挑選；若無需 BGM 則為 null）
 4. 一個 ambience_id（從環境音百寶箱清單中挑選 ID；若無需環境音則為 null）
 5. 一個 scene_description（英文，2-4 句，描述場景的地點、時間、氛圍，例如："A cluttered living room late at night. The air is tense and silent."）
-6. 所有台詞行，每行需有：role（角色名或「旁白」）、emotion（情緒）、text（台詞）、voice_direction_note（英文聲音導演備註，如 "[calm, slow]"）
+6. 所有台詞行，每行需有：role（角色名或「旁白」或「音效」）、emotion（情緒）、text（台詞或動作音效說明）、voice_direction_note（英文聲音導演備註或擬音 ID）
 
 另外，voice_map 的每個角色條目需包含：
 - voice：選取的聲音演員名稱
@@ -595,6 +610,15 @@ BGM 主題清單（供場景配樂挑選）：
         current_chars: int = 0
 
         for line in lines:
+            if line.role in ("音效", "SFX"):
+                if current_group:
+                    groups.append(current_group)
+                    current_group = []
+                    current_roles = set()
+                    current_chars = 0
+                groups.append([line])
+                continue
+
             if current_group:
                 would_be_roles = current_roles | {line.role}
                 would_be_chars = current_chars + len(line.text)
@@ -856,6 +880,29 @@ BGM 主題清單（供場景配樂挑選）：
         mime = getattr(audio, "mime_type", None) or "audio/pcm;rate=24000"
         return self._decode_audio_data(audio_bytes, mime)
 
+    @classmethod
+    def _resolve_sfx_id(cls, line: ScriptLine) -> str | None:
+        """解析劇本行對應之動作擬音 ID。"""
+        from infrastructure.foley_synthesizer import FoleySynthesizer
+
+        # 1. 檢查 voice_direction_note 是否已是已知 sfx_id
+        note = (line.voice_direction_note or "").strip().lower().strip("[]")
+        if FoleySynthesizer.get_sfx_info(note):
+            return note
+
+        # 2. 從 text 尋找關鍵字
+        info = FoleySynthesizer.find_by_keyword(line.text)
+        if info:
+            return info.sfx_id
+
+        # 3. 從 note 尋找關鍵字
+        if line.voice_direction_note:
+            info_note = FoleySynthesizer.find_by_keyword(line.voice_direction_note)
+            if info_note:
+                return info_note.sfx_id
+
+        return None
+
     def generate_scene_audio(
         self, scene: Scene, voice_map: dict, output_path: str, bgm_map: BgmMap | None = None
     ) -> str:
@@ -869,8 +916,29 @@ BGM 主題清單（供場景配樂挑選）：
 
         combined = AudioSegment.empty()
         groups = self._group_lines_into_dialogue_groups(scene.lines)
+        foley_cues = []
 
         for group in groups:
+            # 0. 若為動作音效行，直接透過 FoleySynthesizer 純演算法現場生成音訊，不呼叫 TTS
+            if len(group) == 1 and group[0].role in ("音效", "SFX"):
+                sfx_line = group[0]
+                sfx_id = self._resolve_sfx_id(sfx_line)
+                if sfx_id:
+                    try:
+                        from core.entities import FoleyCue
+                        from infrastructure.foley_synthesizer import FoleySynthesizer
+
+                        sfx_seg = FoleySynthesizer.synthesize(sfx_id)
+                        if len(combined) > 0:
+                            combined += AudioSegment.silent(duration=150)
+                        cue_ts = len(combined)
+                        foley_cues.append(FoleyCue(sfx_id=sfx_id, timestamp_ms=cue_ts))
+                        combined += sfx_seg
+                        print(f"DEBUG: 載入動作擬音 '{sfx_id}' at {cue_ts}ms...")
+                    except Exception as e:
+                        print(f"DEBUG: 動作擬音生成失敗 ({e})，跳過")
+                continue
+
             group_roles = list(dict.fromkeys(line.role for line in group))
             group_audio = None
 
@@ -906,7 +974,7 @@ BGM 主題清單（供場景配樂挑選）：
 
             combined += group_audio
 
-        # ── 三層混音（對白 + BGM + 環境音） ─────────────────────────
+        # ── 四層混音（對白/擬音 + BGM + 環境音 + 智慧讓路） ────────────
         import os
 
         from infrastructure.ambience_catalog import AmbienceCatalog
@@ -941,11 +1009,12 @@ BGM 主題清單（供場景配樂挑選）：
                 print(f"DEBUG: 環境音載入失敗（{e}），跳過環境音")
                 raw_ambience = None
 
-        # 3. 三層混音疊加
+        # 3. 四層混音疊加（帶入 foley_cues 智慧讓路）
         final_audio = AudioMixer.mix_scene_layers(
             dialogue=combined,
             bgm=raw_bgm,
             ambience=raw_ambience,
+            foley_cues=foley_cues,
         )
 
         final_audio.export(output_path, format="mp3")

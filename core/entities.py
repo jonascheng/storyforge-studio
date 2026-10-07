@@ -13,6 +13,16 @@ class ScriptLine:
 
 
 @dataclass
+class FoleyCue:
+    sfx_id: str
+    timestamp_ms: int = 0
+    volume: float = 1.0
+
+    def to_dict(self):
+        return asdict(self)
+
+
+@dataclass
 class BgmTheme:
     name: str
     prompt: str
