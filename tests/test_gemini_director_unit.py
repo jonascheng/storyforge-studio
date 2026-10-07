@@ -767,3 +767,80 @@ def test_generate_scene_audio_with_ambience_layer():
         _, kwargs = spy_mix.call_args
         assert kwargs["ambience"] is not None
         assert kwargs["bgm"] is None
+
+
+def test_break_down_screenplay_prompt_includes_foley_catalog():
+    director = GeminiDirector(api_key="fake-key")
+
+    with patch.object(director, "_call_director_model") as mock_call:
+        mock_call.return_value = '{"voice_map": {}, "scenes": []}'
+        director.break_down_screenplay("測試故事")
+
+        prompt = mock_call.call_args[0][0]
+        assert "動作擬音百寶箱" in prompt
+        assert "creak" in prompt
+        assert "step" in prompt
+        assert "rumble" in prompt
+        assert 'role 填寫 "音效"' in prompt
+
+
+def test_group_lines_isolates_sfx_lines():
+    director = GeminiDirector(api_key="fake-key")
+    lines = [
+        ScriptLine(role="旁白", emotion="平靜", text="夜幕降臨。"),
+        ScriptLine(role="音效", emotion="擬音", text="遠處雷聲", voice_direction_note="rumble"),
+        ScriptLine(role="小明", emotion="害怕", text="要下雨了！"),
+    ]
+
+    groups = director._group_lines_into_dialogue_groups(lines)
+    assert len(groups) == 3
+    assert len(groups[0]) == 1 and groups[0][0].role == "旁白"
+    assert len(groups[1]) == 1 and groups[1][0].role == "音效"
+    assert len(groups[2]) == 1 and groups[2][0].role == "小明"
+
+
+def test_generate_scene_audio_with_foley_cue_passes_to_mixer():
+    import base64
+
+    from pydub import AudioSegment
+
+    director = GeminiDirector(api_key="fake-key")
+    scene = Scene(
+        scene_id=1,
+        title="雷鳴破門場景",
+        lines=[
+            ScriptLine(role="旁白", emotion="緊張", text="突然間。"),
+            ScriptLine(role="音效", emotion="擬音", text="推開門", voice_direction_note="creak"),
+            ScriptLine(role="小明", emotion="震驚", text="誰在那裡？"),
+        ],
+    )
+    voice_map = {"旁白": "Kore", "小明": "Puck"}
+
+    mock_resp = MagicMock()
+    mock_audio = MagicMock()
+    mock_audio.data = base64.b64encode(b"\x00\x00" * 2400).decode("utf-8")  # 100ms
+    mock_audio.mime_type = "audio/pcm;rate=24000"
+    mock_resp.output_audio = mock_audio
+
+    with (
+        patch.object(
+            director, "_create_interaction_with_retry", return_value=mock_resp
+        ) as mock_tts,
+        patch("infrastructure.audio_mixer.AudioMixer.mix_scene_layers") as mock_mix,
+        patch.object(AudioSegment, "export"),
+    ):
+        mock_mix.return_value = AudioSegment.silent(duration=1000)
+        director.generate_scene_audio(scene, voice_map, "/tmp/test_foley_scene.mp3")
+
+        # 驗證 TTS 僅針對「旁白」與「小明」呼叫，絕不可呼叫「音效」
+        for call_args in mock_tts.call_args_list:
+            text_sent = str(call_args)
+            assert "推開門" not in text_sent
+
+        # 驗證 mix_scene_layers 收到 foley_cues
+        assert mock_mix.call_count == 1
+        _, kwargs = mock_mix.call_args
+        assert "foley_cues" in kwargs
+        assert kwargs["foley_cues"] is not None
+        assert len(kwargs["foley_cues"]) == 1
+        assert kwargs["foley_cues"][0].sfx_id == "creak"
