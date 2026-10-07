@@ -57,6 +57,31 @@ class StoryForgeApi:
             "pause_seconds": self.processor.get_pause_seconds(),
         }
 
+    def check_system_ready(self):
+        try:
+            try:
+                import static_ffmpeg
+
+                static_ffmpeg.add_paths(weak=True)
+            except Exception:
+                pass
+
+            from infrastructure.ambience_catalog import AmbienceCatalog
+            from infrastructure.foley_synthesizer import FoleySynthesizer
+
+            ambience_count = len(AmbienceCatalog.list_themes())
+            foley_count = len(FoleySynthesizer.list_sfx())
+            has_key = bool(self.processor.get_key())
+
+            return {
+                "status": "ok",
+                "ambience_count": ambience_count,
+                "foley_count": foley_count,
+                "has_key": has_key,
+            }
+        except Exception as e:
+            return self._handle_error("check_system_ready", e)
+
     # ── 故事編劇步驟 (Screenwriter Step) ─────────────────────────
     def expand_story(self, short_input: str):
         try:

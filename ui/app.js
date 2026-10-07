@@ -1023,14 +1023,46 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    // ── Init ──────────────────────────────────────────────────
-    if (typeof window.addEventListener === "function") {
-        window.addEventListener("pywebviewready", async () => {
+    // ── Init & Splash Screen ──────────────────────────────────
+    const splashScreen = document.getElementById("splashScreen");
+    const splashProgressBar = document.getElementById("splashProgressBar");
+    const splashStatus = document.getElementById("splashStatus");
+
+    async function initApp() {
+        if (splashProgressBar) splashProgressBar.style.width = "35%";
+        if (splashStatus) splashStatus.textContent = "正在檢查聲音引擎與百寶箱...";
+
+        let readyRes = null;
+        try {
+            readyRes = await api("check_system_ready");
+        } catch (e) {
+            console.error("check_system_ready error:", e);
+        }
+
+        if (splashProgressBar) splashProgressBar.style.width = "85%";
+        if (splashStatus) splashStatus.textContent = "引擎就緒，準備開啟 StoryForge...";
+
+        await new Promise((r) => setTimeout(r, 200));
+
+        if (splashProgressBar) splashProgressBar.style.width = "100%";
+        if (splashScreen) {
+            splashScreen.classList.add("fade-out");
+            setTimeout(() => {
+                if (splashScreen.parentNode) splashScreen.parentNode.removeChild(splashScreen);
+            }, 500);
+        }
+
+        // 檢查 API 通行證設定
+        if (!readyRes || !readyRes.has_key) {
             const settings = await api("get_settings");
-            if (settings && !settings.error && !settings.key) {
-                alert("首次啟動或尚未設定通行證，請在接下來的設定畫面中填寫您的 Gemini API Key！");
-                btnSettings.click();
+            if (!settings || !settings.key) {
+                showToast("首次啟動或尚未設定通行證，請填寫您的 Gemini API Key", "info");
+                settingsModal.classList.remove("hidden");
             }
-        });
+        }
+    }
+
+    if (typeof window.addEventListener === "function") {
+        window.addEventListener("pywebviewready", initApp);
     }
 });
