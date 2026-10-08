@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StoryForge 🎙️✨ 有聲書範本展示館</title>
+  <meta name="description" content="StoryForge AI 總導演製作之高音質廣播劇與有聲書範本線上試聽。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #0b0f19;
+      --bg-secondary: #131a2a;
+      --bg-card: rgba(26, 34, 52, 0.7);
+      --bg-card-hover: rgba(35, 46, 70, 0.85);
+      --accent-purple: #8b5cf6;
+      --accent-indigo: #6366f1;
+      --accent-pink: #ec4899;
+      --accent-cyan: #06b6d4;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-glow: rgba(139, 92, 246, 0.3);
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 20px;
+      --radius-full: 9999px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Outfit', 'Noto Sans TC', sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-main);
+      min-height: 100vh;
+      line-height: 1.6;
+      background-image: 
+        radial-gradient(circle at 15% 20%, rgba(99, 102, 241, 0.15) 0%, transparent 40%),
+        radial-gradient(circle at 85% 80%, rgba(236, 72, 153, 0.12) 0%, transparent 45%);
+      background-attachment: fixed;
+      padding-bottom: 120px;
+    }
+
+    header {
+      padding: 48px 24px 32px;
+      text-align: center;
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+
+    .badge-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      background: rgba(139, 92, 246, 0.15);
+      border: 1px solid rgba(139, 92, 246, 0.35);
+      border-radius: var(--radius-full);
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #c4b5fd;
+      margin-bottom: 16px;
+      backdrop-filter: blur(8px);
+    }
+
+    h1 {
+      font-size: clamp(2.2rem, 5vw, 3.4rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      margin-bottom: 16px;
+      background: linear-gradient(135deg, #ffffff 30%, #a78bfa 70%, #f472b6 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .subtitle {
+      font-size: 1.15rem;
+      color: var(--text-muted);
+      max-width: 680px;
+      margin: 0 auto 24px;
+    }
+
+    .header-links {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 20px;
+      border-radius: var(--radius-full);
+      font-size: 0.95rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s ease;
+      cursor: pointer;
+      border: none;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent-indigo), var(--accent-purple));
+      color: #fff;
+      box-shadow: 0 4px 16px rgba(99, 102, 241, 0.35);
+    }
+
+    .btn-primary:hover {
+      box-shadow: 0 6px 22px rgba(99, 102, 241, 0.55);
+      transform: translateY(-2px);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text-main);
+      border: 1px solid var(--border-subtle);
+      backdrop-filter: blur(8px);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.2);
+      transform: translateY(-2px);
+    }
+
+    main {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 20px;
+    }
+
+    /* Tab Switcher */
+    .tabs-container {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      margin-bottom: 32px;
+      overflow-x: auto;
+      padding-bottom: 8px;
+    }
+
+    .tab-btn {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 22px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-full);
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      white-space: nowrap;
+      backdrop-filter: blur(12px);
+    }
+
+    .tab-btn:hover {
+      color: var(--text-main);
+      border-color: var(--border-glow);
+      background: var(--bg-card-hover);
+    }
+
+    .tab-btn.active {
+      color: #fff;
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.35), rgba(139, 92, 246, 0.35));
+      border-color: var(--accent-purple);
+      box-shadow: 0 4px 18px rgba(139, 92, 246, 0.3);
+    }
+
+    /* Showcase Layout */
+    .showcase-grid {
+      display: grid;
+      grid-template-columns: 1fr 1.3fr;
+      gap: 28px;
+      margin-bottom: 40px;
+    }
+
+    @media (max-width: 860px) {
+      .showcase-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .glass-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 28px;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .glass-card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--accent-purple), transparent);
+      opacity: 0.8;
+    }
+
+    /* Story Card Details */
+    .story-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 18px;
+      margin-bottom: 20px;
+    }
+
+    .story-avatar {
+      font-size: 3rem;
+      width: 72px;
+      height: 72px;
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(236, 72, 153, 0.25));
+      border: 1px solid var(--border-subtle);
+      flex-shrink: 0;
+    }
+
+    .story-meta h2 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: #fff;
+    }
+
+    .genre-tag {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: var(--radius-full);
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      background: rgba(6, 182, 212, 0.15);
+      color: #67e8f9;
+      border: 1px solid rgba(6, 182, 212, 0.3);
+    }
+
+    .story-synopsis {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      margin-bottom: 24px;
+      line-height: 1.6;
+    }
+
+    .section-title {
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #a5b4fc;
+      margin-bottom: 12px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Cast List */
+    .cast-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 24px;
+    }
+
+    .cast-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      border-radius: var(--radius-sm);
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .cast-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .cast-name {
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+
+    .cast-voice {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .cast-badge {
+      font-size: 0.75rem;
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+      background: rgba(139, 92, 246, 0.18);
+      color: #ddd6fe;
+      border: 1px solid rgba(139, 92, 246, 0.25);
+    }
+
+    /* Sound Features */
+    .audio-features {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .feat-pill {
+      font-size: 0.8rem;
+      padding: 4px 10px;
+      border-radius: var(--radius-full);
+      background: rgba(255, 255, 255, 0.05);
+      color: #cbd5e1;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    /* Script Preview */
+    .script-container {
+      max-height: 480px;
+      overflow-y: auto;
+      padding-right: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .script-container::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .script-container::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: var(--radius-full);
+    }
+
+    .scene-card {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: var(--radius-md);
+      padding: 16px;
+    }
+
+    .scene-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      font-size: 0.8rem;
+      color: #a78bfa;
+      font-weight: 600;
+    }
+
+    .scene-bgm {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      color: #38bdf8;
+      background: rgba(56, 189, 248, 0.1);
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+    }
+
+    .dialogue-item {
+      margin-bottom: 8px;
+      font-size: 0.92rem;
+      line-height: 1.5;
+    }
+
+    .speaker-tag {
+      font-weight: 700;
+      color: #f472b6;
+      margin-right: 6px;
+    }
+
+    .emotion-tag {
+      color: #94a3b8;
+      font-size: 0.82rem;
+      font-style: italic;
+      margin-right: 6px;
+    }
+
+    .foley-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.78rem;
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+      background: rgba(245, 158, 11, 0.15);
+      color: #fbbf24;
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      margin: 4px 0;
+    }
+
+    /* Fixed Sticky Player Bar */
+    .player-dock {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(94%, 900px);
+      background: rgba(19, 26, 42, 0.85);
+      border: 1px solid var(--border-glow);
+      border-radius: var(--radius-full);
+      padding: 14px 28px;
+      backdrop-filter: blur(20px);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5), 0 0 24px rgba(139, 92, 246, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      z-index: 100;
+    }
+
+    .dock-story-info {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      min-width: 180px;
+    }
+
+    .dock-icon {
+      font-size: 1.8rem;
+    }
+
+    .dock-title {
+      font-weight: 700;
+      font-size: 0.95rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 140px;
+    }
+
+    .dock-genre {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .dock-controls {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      flex: 1;
+      gap: 6px;
+    }
+
+    .control-buttons {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .ctrl-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.1rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      transition: all 0.2s;
+    }
+
+    .ctrl-btn:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .play-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent-indigo), var(--accent-purple));
+      color: #fff;
+      font-size: 1.3rem;
+      box-shadow: 0 4px 16px rgba(139, 92, 246, 0.4);
+    }
+
+    .play-btn:hover {
+      transform: scale(1.08);
+      box-shadow: 0 6px 20px rgba(139, 92, 246, 0.6);
+      color: #fff;
+    }
+
+    /* Waveform & Progress */
+    .progress-bar-wrap {
+      display: flex;
+      align-items: center;
+      width: 100%;
+      gap: 12px;
+    }
+
+    .time-text {
+      font-size: 0.75rem;
+      font-family: monospace;
+      color: var(--text-muted);
+      min-width: 40px;
+    }
+
+    .seek-slider {
+      flex: 1;
+      height: 6px;
+      -webkit-appearance: none;
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: var(--radius-full);
+      outline: none;
+      cursor: pointer;
+    }
+
+    .seek-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--accent-purple);
+      cursor: pointer;
+      box-shadow: 0 0 8px var(--accent-purple);
+    }
+
+    .dock-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .rate-btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      padding: 4px 8px;
+      border-radius: var(--radius-sm);
+      font-size: 0.75rem;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .rate-btn:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    .toast {
+      position: fixed;
+      top: 24px;
+      right: 24px;
+      background: rgba(26, 34, 52, 0.95);
+      border: 1px solid var(--accent-purple);
+      color: #fff;
+      padding: 12px 20px;
+      border-radius: var(--radius-md);
+      box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+      display: none;
+      z-index: 200;
+      font-size: 0.9rem;
+      backdrop-filter: blur(10px);
+    }
+
+    /* Wave visualizer animation */
+    .wave-bars {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      height: 16px;
+    }
+
+    .wave-bar {
+      width: 3px;
+      height: 6px;
+      background: var(--accent-purple);
+      border-radius: 2px;
+      transition: height 0.2s ease;
+    }
+
+    .playing .wave-bar:nth-child(1) { animation: wave 1s infinite ease-in-out; }
+    .playing .wave-bar:nth-child(2) { animation: wave 0.8s infinite ease-in-out 0.2s; }
+    .playing .wave-bar:nth-child(3) { animation: wave 1.2s infinite ease-in-out 0.4s; }
+    .playing .wave-bar:nth-child(4) { animation: wave 0.9s infinite ease-in-out 0.1s; }
+
+    @keyframes wave {
+      0%, 100% { height: 4px; }
+      50% { height: 16px; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="badge-pill">
+      <span>✨</span> AI 總導演・全能有聲書工作室
+    </div>
+    <h1>StoryForge 範本展示館</h1>
+    <p class="subtitle">
+      將文字故事轉化為生動廣播劇。內建多角色演繹、背景音樂自動生成、演算法擬音合成與智慧讓路混音。
+    </p>
+    <div class="header-links">
+      <a href="https://github.com/jonascheng/storyforge-studio" target="_blank" class="btn btn-primary" id="btn-github-repo">
+        <svg height="18" width="18" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+        </svg>
+        前往 GitHub 專案庫
+      </a>
+      <a href="https://github.com/jonascheng/storyforge-studio/releases/tag/audiobook-samples" target="_blank" class="btn btn-secondary" id="btn-releases-download">
+        <span>💾</span> 下載官方高音質音檔
+      </a>
+    </div>
+  </header>
+
+  <main>
+    <!-- Story Tabs -->
+    <div class="tabs-container" id="story-tabs">
+      <button class="tab-btn active" data-story="0" id="tab-story-0">
+        <span>🕵️‍♂️</span> 賽博龐克：霓虹雨夜的委託
+      </button>
+      <button class="tab-btn" data-story="1" id="tab-story-1">
+        <span>🦊</span> 奇幻童話：發光蘑菇森林
+      </button>
+      <button class="tab-btn" data-story="2" id="tab-story-2">
+        <span>🚀</span> 太空科幻：星艦最後的訊號
+      </button>
+    </div>
+
+    <!-- Showcase Grid -->
+    <div class="showcase-grid">
+      <!-- Left: Story Details & Cast -->
+      <div class="glass-card">
+        <div class="story-header">
+          <div class="story-avatar" id="story-icon">🕵️‍♂️</div>
+          <div class="story-meta">
+            <span class="genre-tag" id="story-genre">Cyberpunk Mystery</span>
+            <h2 id="story-title">霓虹雨夜的委託</h2>
+          </div>
+        </div>
+
+        <p class="story-synopsis" id="story-synopsis">
+          在下著酸雨的第七區暗巷，私家偵探羅曼推開老舊辦公室的門，迎來了一位神秘委託人艾娃，她手中攥著被加密的記憶晶片...
+        </p>
+
+        <div class="section-title">
+          <span>🎭</span> 角色聲音陣容 (Voice Cast)
+        </div>
+        <div class="cast-list" id="story-cast">
+          <!-- Cast items injected by JS -->
+        </div>
+
+        <div class="section-title">
+          <span>🎛️</span> 音訊製作技術規格
+        </div>
+        <div class="audio-features" id="story-tech">
+          <span class="feat-pill">🎵 專屬場景主題 BGM</span>
+          <span class="feat-pill">🦶 演算法擬音 (腳步聲/關門聲)</span>
+          <span class="feat-pill">🔉 智慧音樂讓路 (-8dB Ducking)</span>
+          <span class="feat-pill">🎧 雙聲道立體聲 44.1kHz</span>
+        </div>
+      </div>
+
+      <!-- Right: Script & Emotion Breakdown -->
+      <div class="glass-card">
+        <div class="section-title" style="margin-bottom: 16px;">
+          <span>🎬</span> 導演劇本與台詞情緒解析
+        </div>
+        <div class="script-container" id="story-script">
+          <!-- Scenes & dialogues injected by JS -->
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Sticky Dock Player -->
+  <div class="player-dock" id="player-dock">
+    <div class="dock-story-info">
+      <div class="dock-icon" id="dock-icon">🕵️‍♂️</div>
+      <div>
+        <div class="dock-title" id="dock-title">霓虹雨夜的委託</div>
+        <div class="dock-genre" id="dock-genre">賽博龐克懸疑</div>
+      </div>
+      <div class="wave-bars" id="wave-bars">
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+      </div>
+    </div>
+
+    <div class="dock-controls">
+      <div class="control-buttons">
+        <button class="ctrl-btn" id="btn-rewind" title="倒轉 10 秒">↺10</button>
+        <button class="ctrl-btn play-btn" id="btn-play" title="播放/暫停">▶</button>
+        <button class="ctrl-btn" id="btn-forward" title="快轉 10 秒">↻10</button>
+      </div>
+      <div class="progress-bar-wrap">
+        <span class="time-text" id="time-current">0:00</span>
+        <input type="range" class="seek-slider" id="seek-slider" min="0" max="100" value="0">
+        <span class="time-text" id="time-duration">0:00</span>
+      </div>
+    </div>
+
+    <div class="dock-actions">
+      <button class="rate-btn" id="btn-speed">1.0x</button>
+      <a class="ctrl-btn" id="btn-download" title="下載此範本 MP3" href="#" download>
+        ⬇️
+      </a>
+    </div>
+  </div>
+
+  <audio id="audio-player" preload="metadata"></audio>
+  <div class="toast" id="toast-msg"></div>
+
+  <script>
+    // Sample Data
+    const stories = [
+      {
+        id: "sample-01-cyberpunk-detective",
+        title: "霓虹雨夜的委託",
+        genre: "賽博龐克懸疑",
+        genreTag: "Cyberpunk Mystery",
+        icon: "🕵️‍♂️",
+        synopsis: "在下著酸雨的第七區暗巷，私家偵探羅曼推開老舊辦公室的門，迎來了一位神秘委託人艾娃，她手中攥著被加密的記憶晶片...",
+        audioSrc: "https://github.com/jonascheng/storyforge-studio/releases/download/audiobook-samples/sample-01-cyberpunk-detective.mp3",
+        cast: [
+          { name: "羅曼 (偵探)", voice: "Aoede (沉穩沙啞・男)", desc: "厭世的老練私家偵探" },
+          { name: "艾娃 (委託人)", voice: "Kore (焦慮急促・女)", desc: "逃亡中的科技公司工程師" },
+          { name: "旁白", voice: "Fenrir (冷靜深沉・男)", desc: "冷眼記錄夜城百態" }
+        ],
+        scenes: [
+          {
+            sceneNum: "第一幕：深夜敲門聲",
+            bgm: "Cyberpunk Rain / Lo-fi Noir",
+            foley: ["door_creak (推開生鏽鐵門)", "heavy_rain (雨聲窗敲擊)"],
+            lines: [
+              { speaker: "旁白", emotion: "低沉平緩", text: "霓虹燈在酸雨形成的水窪中碎成斑斕的光斑。第七區的深夜，只有失眠的人和罪犯還清醒。" },
+              { speaker: "羅曼", emotion: "疲憊無奈", text: "進來吧，門沒鎖。希望你的故事比外頭的爛天氣有趣。" },
+              { speaker: "艾娃", emotion: "呼吸急促、極度恐懼", text: "羅曼先生... 他們在追我。這個晶片，明天日出前必須破解！" }
+            ]
+          },
+          {
+            sceneNum: "第二幕：加密晶片",
+            bgm: "Tension Drone / Electronic Pulse",
+            foley: ["glass_clink (酒杯放下)", "glitch (全息介面閃爍)"],
+            lines: [
+              { speaker: "羅曼", emotion: "神情轉為嚴肅", text: "荒坂重工的軍規防偽標籤？小姑娘，你惹上的麻煩比你想的大一百倍。" },
+              { speaker: "艾娃", emotion: "含淚咬牙", text: "我哥哥因為它死了。如果我也死，至少這座城市要看清真相！" }
+            ]
+          }
+        ]
+      },
+      {
+        id: "sample-02-forest-whisper",
+        title: "發光蘑菇森林的秘密",
+        genre: "奇幻童話冒險",
+        genreTag: "Fantasy Tale",
+        icon: "🦊",
+        synopsis: "小狐狸皮皮為了尋找治好森林水源的解藥，孤身踏入連貓頭鷹長老都不敢靠近的永夜迷霧幽谷...",
+        audioSrc: "https://github.com/jonascheng/storyforge-studio/releases/download/audiobook-samples/sample-02-forest-whisper.mp3",
+        cast: [
+          { name: "皮皮 (小狐狸)", voice: "Puck (童趣好奇・男)", desc: "勇敢無畏的幼狐冒險家" },
+          { name: "樹長老", voice: "Charon (厚重溫暖・男)", desc: "沉睡千年的古橡樹精靈" },
+          { name: "旁白", voice: "Aoede (溫柔說書人・女)", desc: "如床邊故事般溫暖治癒" }
+        ],
+        scenes: [
+          {
+            sceneNum: "第一幕：迷霧與螢光",
+            bgm: "Forest Melody / Enchanted Harp",
+            foley: ["footsteps_grass (踩在柔軟青苔上的腳步聲)", "wind_chime (螢光孢子飄落微鳴)"],
+            lines: [
+              { speaker: "旁白", emotion: "輕柔神秘", text: "當最後一抹夕陽落下，整座黑森林的地面泛起了淺藍色的微光。" },
+              { speaker: "皮皮", emotion: "充滿好奇且小心翼翼", text: "哇！長老說發光的蘑菇會唱歌... 難道真的就是這裡嗎？" }
+            ]
+          },
+          {
+            sceneNum: "第二幕：古樹甦醒",
+            bgm: "Ancient Mystery / Deep Ambient",
+            foley: ["wood_creak (巨大古木軀幹挪動聲)", "rumble (低頻泥土震動)"],
+            lines: [
+              { speaker: "樹長老", emotion: "緩慢深遠如鐘鳴", text: "小傢伙... 已經三百年，沒有生命敢向老朽提問了..." },
+              { speaker: "皮皮", emotion: "挺起胸膛鼓起勇氣", text: "樹爺爺！村裡的小鹿都生病了，請告訴我精靈之泉在哪裡！" }
+            ]
+          }
+        ]
+      },
+      {
+        id: "sample-03-space-odyssey",
+        title: "星艦最後的訊號",
+        genre: "太空科幻紀事",
+        genreTag: "Sci-Fi Drama",
+        icon: "🚀",
+        synopsis: "開拓號探索艦在跨越柯伊伯帶時遭遇未知重力異常，艦長在主動力爐熄火前夕，向地球發出最後的記錄報告...",
+        audioSrc: "https://github.com/jonascheng/storyforge-studio/releases/download/audiobook-samples/sample-03-space-odyssey.mp3",
+        cast: [
+          { name: "艦長馬克", voice: "Zephyr (剛毅深情・男)", desc: "責任重大的開拓號指揮官" },
+          { name: "AI 艦載主機", voice: "Kore (清冷客觀・女)", desc: "計算機演算智慧系統" }
+        ],
+        scenes: [
+          {
+            sceneNum: "第一幕：動力中斷",
+            bgm: "Deep Space Void / Slow Strings",
+            foley: ["alarm_beep (遠處系統告警逼逼聲)", "hydraulic_vent (艙門洩壓沉重音)"],
+            lines: [
+              { speaker: "AI 艦載主機", emotion: "機械式平靜", text: "警告：三號核聚變反應堆已停機。距離太陽引力井逃逸窗口剩餘三分十二秒。" },
+              { speaker: "艦長馬克", emotion: "深呼吸後平靜坦然", text: "啟動應急天線黑盒子。把這段語音訊號... 設為最高優先級廣播。" }
+            ]
+          },
+          {
+            sceneNum: "第二幕：航行日誌錄音",
+            bgm: "Emotional Ambient / Piano Solo",
+            foley: ["radio_static (微弱宇宙射線雜音)"],
+            lines: [
+              { speaker: "艦長馬克", emotion: "溫柔而堅毅", text: "地球指揮中心，這裡是開拓號。我們在未知星雲邊緣看見了光芒... 不要害怕黑暗，孩子們，人類的腳步絕不會在此停下。" }
+            ]
+          }
+        ]
+      }
+    ];
+
+    let currentStoryIdx = 0;
+    const audio = document.getElementById("audio-player");
+    const playBtn = document.getElementById("btn-play");
+    const seekSlider = document.getElementById("seek-slider");
+    const timeCurrent = document.getElementById("time-current");
+    const timeDuration = document.getElementById("time-duration");
+    const speedBtn = document.getElementById("btn-speed");
+    const rewindBtn = document.getElementById("btn-rewind");
+    const forwardBtn = document.getElementById("btn-forward");
+    const downloadBtn = document.getElementById("btn-download");
+    const waveBars = document.getElementById("wave-bars");
+    const toast = document.getElementById("toast-msg");
+
+    const speeds = [1.0, 1.25, 1.5, 0.8];
+    let speedIdx = 0;
+
+    function showToast(msg) {
+      toast.textContent = msg;
+      toast.style.display = "block";
+      setTimeout(() => { toast.style.display = "none"; }, 3500);
+    }
+
+    function formatTime(secs) {
+      if (isNaN(secs)) return "0:00";
+      const m = Math.floor(secs / 60);
+      const s = Math.floor(secs % 60);
+      return `${m}:${s < 10 ? '0' : ''}${s}`;
+    }
+
+    function renderStory(idx) {
+      currentStoryIdx = idx;
+      const s = stories[idx];
+
+      // Update tabs
+      document.querySelectorAll(".tab-btn").forEach((btn, i) => {
+        btn.classList.toggle("active", i === idx);
+      });
+
+      // Update left card
+      document.getElementById("story-icon").textContent = s.icon;
+      document.getElementById("story-genre").textContent = s.genreTag;
+      document.getElementById("story-title").textContent = s.title;
+      document.getElementById("story-synopsis").textContent = s.synopsis;
+
+      // Update cast
+      const castContainer = document.getElementById("story-cast");
+      castContainer.innerHTML = s.cast.map(c => `
+        <div class="cast-item">
+          <div class="cast-info">
+            <span class="cast-name">${c.name}</span>
+            <span class="cast-voice">(${c.desc})</span>
+          </div>
+          <span class="cast-badge">${c.voice}</span>
+        </div>
+      `).join("");
+
+      // Update script
+      const scriptContainer = document.getElementById("story-script");
+      scriptContainer.innerHTML = s.scenes.map(sc => `
+        <div class="scene-card">
+          <div class="scene-meta">
+            <span>${sc.sceneNum}</span>
+            <span class="scene-bgm">🎵 ${sc.bgm}</span>
+          </div>
+          ${sc.foley && sc.foley.length ? `
+            <div style="margin-bottom: 8px;">
+              ${sc.foley.map(f => `<span class="foley-badge">⚡ 擬音: ${f}</span>`).join(" ")}
+            </div>
+          ` : ''}
+          ${sc.lines.map(l => `
+            <div class="dialogue-item">
+              <span class="speaker-tag">【${l.speaker}】</span>
+              <span class="emotion-tag">(${l.emotion})</span>
+              <span>${l.text}</span>
+            </div>
+          `).join("")}
+        </div>
+      `).join("");
+
+      // Update player dock info
+      document.getElementById("dock-icon").textContent = s.icon;
+      document.getElementById("dock-title").textContent = s.title;
+      document.getElementById("dock-genre").textContent = s.genre;
+      downloadBtn.href = s.audioSrc;
+      downloadBtn.setAttribute("download", `${s.id}.mp3`);
+
+      // Update audio source
+      const wasPlaying = !audio.paused;
+      audio.src = s.audioSrc;
+      seekSlider.value = 0;
+      timeCurrent.textContent = "0:00";
+      timeDuration.textContent = "0:00";
+
+      if (wasPlaying) {
+        audio.play().catch(e => {
+          showToast("💡 範本音檔正在由 GitHub Release 準備中，可先瀏覽豐富劇本！");
+        });
+      }
+    }
+
+    // Player events
+    playBtn.addEventListener("click", () => {
+      if (audio.paused) {
+        audio.play().then(() => {
+          playBtn.textContent = "⏸";
+          waveBars.classList.add("playing");
+        }).catch(err => {
+          showToast("💡 範本音檔尚未上傳至 GitHub Release，上傳後即可在線隨點即播！");
+          // Fallback UI simulation
+          playBtn.textContent = "⏸";
+          waveBars.classList.add("playing");
+        });
+      } else {
+        audio.pause();
+        playBtn.textContent = "▶";
+        waveBars.classList.remove("playing");
+      }
+    });
+
+    audio.addEventListener("timeupdate", () => {
+      if (!isNaN(audio.duration)) {
+        seekSlider.value = (audio.currentTime / audio.duration) * 100;
+        timeCurrent.textContent = formatTime(audio.currentTime);
+      }
+    });
+
+    audio.addEventListener("loadedmetadata", () => {
+      timeDuration.textContent = formatTime(audio.duration);
+    });
+
+    seekSlider.addEventListener("input", () => {
+      if (!isNaN(audio.duration)) {
+        audio.currentTime = (seekSlider.value / 100) * audio.duration;
+      }
+    });
+
+    rewindBtn.addEventListener("click", () => {
+      audio.currentTime = Math.max(0, audio.currentTime - 10);
+    });
+
+    forwardBtn.addEventListener("click", () => {
+      audio.currentTime = Math.min(audio.duration || 100, audio.currentTime + 10);
+    });
+
+    speedBtn.addEventListener("click", () => {
+      speedIdx = (speedIdx + 1) % speeds.length;
+      const spd = speeds[speedIdx];
+      audio.playbackRate = spd;
+      speedBtn.textContent = `${spd}x`;
+    });
+
+    // Tab buttons click
+    document.getElementById("story-tabs").addEventListener("click", (e) => {
+      const btn = e.target.closest(".tab-btn");
+      if (btn) {
+        const idx = parseInt(btn.dataset.story, 10);
+        renderStory(idx);
+      }
+    });
+
+    // Initialize
+    renderStory(0);
+  </script>
+</body>
+</html>
