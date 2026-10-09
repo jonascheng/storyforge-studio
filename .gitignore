@@ -7,4 +7,4 @@ dist/
 build/
 *.egg-info/
 .venv/
-.DS_Store
+.DS_Store!docs/audio/*.mp3
