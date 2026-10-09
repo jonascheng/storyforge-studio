@@ -740,7 +740,8 @@
         genreTag: "Cyberpunk Mystery",
         icon: "🕵️‍♂️",
         synopsis: "在下著酸雨的第七區暗巷，私家偵探羅曼推開老舊辦公室的門，迎來了一位神秘委託人艾娃，她手中攥著被加密的記憶晶片...",
-        audioSrc: "https://github.com/jonascheng/storyforge-studio/releases/download/audiobook-samples/sample-01-cyberpunk-detective.mp3",
+        audioSrc: "audio/sample-01-cyberpunk-detective.mp3",
+        releaseUrl: "https://github.com/jonascheng/storyforge-studio/releases/download/audiobook-samples/sample-01-cyberpunk-detective.mp3",
         cast: [
           { name: "羅曼 (偵探)", voice: "Aoede (沉穩沙啞・男)", desc: "厭世的老練私家偵探" },
           { name: "艾娃 (委託人)", voice: "Kore (焦慮急促・女)", desc: "逃亡中的科技公司工程師" },
@@ -775,7 +776,8 @@
         genreTag: "Fantasy Tale",
         icon: "🦊",
         synopsis: "小狐狸皮皮為了尋找治好森林水源的解藥，孤身踏入連貓頭鷹長老都不敢靠近的永夜迷霧幽谷...",
-        audioSrc: "https://github.com/jonascheng/storyforge-studio/releases/download/audiobook-samples/sample-02-forest-whisper.mp3",
+        audioSrc: "audio/sample-02-forest-whisper.mp3",
+        releaseUrl: "https://github.com/jonascheng/storyforge-studio/releases/download/audiobook-samples/sample-02-forest-whisper.mp3",
         cast: [
           { name: "皮皮 (小狐狸)", voice: "Puck (童趣好奇・男)", desc: "勇敢無畏的幼狐冒險家" },
           { name: "樹長老", voice: "Charon (厚重溫暖・男)", desc: "沉睡千年的古橡樹精靈" },
@@ -809,7 +811,8 @@
         genreTag: "Sci-Fi Drama",
         icon: "🚀",
         synopsis: "開拓號探索艦在跨越柯伊伯帶時遭遇未知重力異常，艦長在主動力爐熄火前夕，向地球發出最後的記錄報告...",
-        audioSrc: "https://github.com/jonascheng/storyforge-studio/releases/download/audiobook-samples/sample-03-space-odyssey.mp3",
+        audioSrc: "audio/sample-03-space-odyssey.mp3",
+        releaseUrl: "https://github.com/jonascheng/storyforge-studio/releases/download/audiobook-samples/sample-03-space-odyssey.mp3",
         cast: [
           { name: "艦長馬克", voice: "Zephyr (剛毅深情・男)", desc: "責任重大的開拓號指揮官" },
           { name: "AI 艦載主機", voice: "Kore (清冷客觀・女)", desc: "計算機演算智慧系統" }
@@ -943,15 +946,49 @@
           playBtn.textContent = "⏸";
           waveBars.classList.add("playing");
         }).catch(err => {
-          showToast("💡 範本音檔尚未上傳至 GitHub Release，上傳後即可在線隨點即播！");
-          // Fallback UI simulation
-          playBtn.textContent = "⏸";
-          waveBars.classList.add("playing");
+          console.warn("Direct play failed, trying fallback:", err);
+          const s = stories[currentStoryIdx];
+          if (audio.src !== s.releaseUrl && s.releaseUrl) {
+            audio.src = s.releaseUrl;
+            audio.play().then(() => {
+              playBtn.textContent = "⏸";
+              waveBars.classList.add("playing");
+            }).catch(e => {
+              showToast("⚠️ 暫時無法播放，請確認網路連線或直接下載 MP3");
+            });
+          } else {
+            showToast("⚠️ 暫時無法播放，請確認網路連線或直接下載 MP3");
+          }
         });
       } else {
         audio.pause();
         playBtn.textContent = "▶";
         waveBars.classList.remove("playing");
+      }
+    });
+
+    audio.addEventListener("play", () => {
+      playBtn.textContent = "⏸";
+      waveBars.classList.add("playing");
+    });
+
+    audio.addEventListener("pause", () => {
+      playBtn.textContent = "▶";
+      waveBars.classList.remove("playing");
+    });
+
+    audio.addEventListener("ended", () => {
+      playBtn.textContent = "▶";
+      waveBars.classList.remove("playing");
+      seekSlider.value = 0;
+      timeCurrent.textContent = "0:00";
+    });
+
+    audio.addEventListener("error", () => {
+      const s = stories[currentStoryIdx];
+      if (audio.src !== s.releaseUrl && s.releaseUrl) {
+        audio.src = s.releaseUrl;
+        audio.load();
       }
     });
 

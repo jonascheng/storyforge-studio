@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "storyforge-studio"
-version = "0.1.0"
+version = "0.2.0"
 description = "將文字故事轉換為具備情緒、角色演繹與生動聲音的有聲書電腦軟體"
 readme = "README.md"
 requires-python = ">=3.11"
