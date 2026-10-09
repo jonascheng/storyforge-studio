@@ -8,6 +8,22 @@ StoryForge 就像一位住在你電腦裡的 **AI 總導演**。只要把心中�
 
 ---
 
+## 🎧 精選有聲書範本試聽 (Audiobook Showcase)
+
+想先聽聽 AI 總導演親手錄製的作品嗎？以下示範作品完全由 StoryForge 全自動生成（包含多角色聲音演出、場景背景音樂、演算法動作擬音與智慧音樂讓路混音）：
+
+> 🌟 **線上互動展示館**：前往 [🎙️ StoryForge 有聲書範本展示網頁](https://jonascheng.github.io/storyforge-studio/)，享受具備動態音波、情境劇本對白與倍速播放的完整試聽體驗！
+
+| 故事封面與名稱 | 題材風格 | 角色聲音陣容與精華片段 | 快速試聽與下載 |
+| :--- | :--- | :--- | :--- |
+| **🕵️‍♂️ 霓虹雨夜的委託**<br>*(Cyberpunk Detective)* | 賽博龐克<br>懸疑廣播劇 | • **羅曼 (偵探)**：厭世老練 (Aoede)<br>• **艾娃 (委託人)**：焦慮急促 (Kore)<br>• **旁白**：冷靜深沉 (Fenrir)<br>💬 *「荒坂重工的防偽標籤？小姑娘，你惹上的麻煩比你想的大一百倍。」* | [▶️ 線上試聽 / 下載 MP3](https://github.com/jonascheng/storyforge-studio/releases/download/audiobook-samples/sample-01-cyberpunk-detective.mp3)<br>[📖 查看完整劇本](https://jonascheng.github.io/storyforge-studio/) |
+| **🦊 發光蘑菇森林的秘密**<br>*(Forest Whisper)* | 奇幻童話<br>溫馨冒險 | • **皮皮 (小狐狸)**：童趣好奇 (Puck)<br>• **樹長老**：厚重溫暖 (Charon)<br>• **旁白**：溫柔說書人 (Aoede)<br>💬 *「樹爺爺！村裡的小鹿都生病了，請告訴我精靈之泉在哪裡！」* | [▶️ 線上試聽 / 下載 MP3](https://github.com/jonascheng/storyforge-studio/releases/download/audiobook-samples/sample-02-forest-whisper.mp3)<br>[📖 查看完整劇本](https://jonascheng.github.io/storyforge-studio/) |
+| **🚀 星艦最後的訊號**<br>*(Space Odyssey)* | 太空科幻<br>情感紀事 | • **艦長馬克**：剛毅深情 (Zephyr)<br>• **AI 艦載主機**：清冷客觀 (Kore)<br>💬 *「不要害怕黑暗，孩子們，人類的腳步絕不會在此停下。」* | [▶️ 線上試聽 / 下載 MP3](https://github.com/jonascheng/storyforge-studio/releases/download/audiobook-samples/sample-03-space-odyssey.mp3)<br>[📖 查看完整劇本](https://jonascheng.github.io/storyforge-studio/) |
+
+> 💡 **音訊託管說明**：示範 MP3 音檔永久託管於 [GitHub Releases (audiobook-samples)](https://github.com/jonascheng/storyforge-studio/releases/tag/audiobook-samples)，支援 HTTP Range 串流隨點即播，零外部收費。相關規格詳見 [有聲書範本音訊託管指南](docs/audiobook-samples-hosting.md)。
+
+---
+
 ## 🚀 三分鐘快速上手
 
 ### 第一步：召喚小助手（安裝 uv 工具）
